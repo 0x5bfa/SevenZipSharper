@@ -1,0 +1,8 @@
+* text=auto eol=crlf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.nupkg binary
+*.7z binary
+*.rar binary
+*.wim binary
+*.arj binary

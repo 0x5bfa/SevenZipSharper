@@ -5,23 +5,24 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build ${{ matrix.configuration }} (${{ matrix.architecture }})
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: [Debug, Release]
-        architecture: [x86, x64]
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
-
-      - name: Build solution
-        run: >-
-          dotnet build SevenZip.slnx -c ${{ matrix.configuration }} -p:Platform=${{ matrix.architecture }}
+      - name: Restore
+        run: dotnet restore SevenZipSharp.slnx
+      - name: Build
+        run: dotnet build SevenZipSharp.slnx --configuration Release --no-restore
+      - name: Native integration tests
+        run: dotnet test tests/SevenZipSharp.Tests --configuration Release --no-build --no-restore
+      - name: Publish NativeAOT smoke application
+        run: dotnet publish samples/SevenZipSharp.Sample --configuration Release --runtime win-x64 -p:PublishAot=true --self-contained --output artifacts/aot/win-x64
+      - name: Run NativeAOT smoke checks
+        run: ./artifacts/aot/win-x64/SevenZipSharp.Sample.exe self-test
