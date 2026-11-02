@@ -1,9 +1,7 @@
-# SevenZipSharp
+<h1 align="center">7zSharp</h1>
+<p align="center">archive library built around the 7-Zip engine, with a stream-based API and separate filesystem conveniences. Windows is currently required.</p>
 
-A .NET 10 archive library built around the 7-Zip engine, with a stream-based API
-and separate filesystem conveniences. Windows is currently required.
-
-## Public API
+## Usage
 
 | Type | Responsibility |
 | --- | --- |
@@ -17,7 +15,7 @@ and separate filesystem conveniences. Windows is currently required.
 The namespace, assembly, and project name are `SevenZipSharp`. Native ABI
 interfaces, HRESULTs, callbacks, and engine objects remain internal.
 
-## Read
+### Read
 
 ```csharp
 using SevenZipSharp;
@@ -45,7 +43,7 @@ The destination factory transfers ownership of each returned stream; return
 `null` to skip a file. For filesystem output, use `ExtractToDirectory` or
 `ExtractToFile` with `ArchiveExtractionOptions`.
 
-## Create
+### Create
 
 ```csharp
 var builder = new ArchiveBuilder();
@@ -70,7 +68,7 @@ factory result is owned by the operation, must be fresh, and must contain exactl
 the declared remaining length. Known-length sequential sources are supported.
 Builders are consumed when execution starts, including failed/canceled execution.
 
-## Edit
+### Edit
 
 ```csharp
 ArchiveFile.Update("existing.zip", editor =>
@@ -130,29 +128,3 @@ spooling, custom DLL runtimes, raw native properties, multi-volume output, SFX
 creation, managed codecs, or full filesystem metadata restoration. Only surfaced
 timestamps and supported Windows attributes are restoration/editing contracts;
 do not assume ACL, owner, extended-attribute, or alternate-stream preservation.
-
-## Build and validate
-
-```powershell
-dotnet build SevenZipSharp.slnx --configuration Release
-dotnet test tests/SevenZipSharp.Tests --configuration Release
-dotnet test tests/SevenZipSharp.Tests --configuration Release --arch x86
-dotnet run --project samples/SevenZipSharp.Sample --configuration Release -- self-test
-```
-
-NativeAOT smoke checks:
-
-```powershell
-dotnet publish samples/SevenZipSharp.Sample --configuration Release --runtime win-x64 -p:PublishAot=true --self-contained --output artifacts/aot/win-x64
-./artifacts/aot/win-x64/SevenZipSharp.Sample.exe self-test
-```
-
-The sample also provides `list`, `verify`, `extract`, and `create` commands.
-
-The pinned `SevenZip.Interop` package is restored from the repository's
-[local feed](packages/README.md). Its native assets, licenses, and upstream source
-revision stay together in that package. CI builds, runs native integration
-tests, and publishes/runs the x64 NativeAOT smoke application.
-
-See the [implementation status](docs/implementation-status.md) and the original
-[architecture proposal](docs/architecture-and-api-redesign.md).
