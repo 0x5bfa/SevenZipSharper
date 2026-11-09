@@ -20,9 +20,13 @@ rather than only the scaffold. Public namespace and assembly: `SevenZipSharp`.
 
 ## Dependency and ABI boundary
 
-`packages/SevenZip.Interop.26.5.0.nupkg` is a pinned local feed dependency.
+`packages/SevenZip.Interop.26.5.1.nupkg` is a pinned local feed dependency.
 A clean-package-cache restore has been exercised. See `packages/README.md` for
 its checksum, upstream source revision, and included licenses.
+
+The WinMD groups types by function under `SevenZip.Interop`: `Archives`,
+`Compression`, `Cryptography`, `Hashing`, `Progress`, `Streams`, and `FileManager`.
+The 26.5.1 metadata update preserves the native contracts and native DLL bytes.
 
 ABI definitions are internal and manually pinned to the matching 7-Zip headers.
 .NET's COM source generator generates the managed callback implementations;

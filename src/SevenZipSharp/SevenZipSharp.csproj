@@ -9,7 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="SevenZip.Interop" Version="26.5.0" />
+        <PackageReference Include="SevenZip.Interop" Version="26.5.1" />
     </ItemGroup>
 
 </Project>
