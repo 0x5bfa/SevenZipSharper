@@ -1,8 +1,13 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
+using SevenZip.Interop.Archives;
+using SevenZip.Interop.Cryptography;
+using SevenZip.Interop.Progress;
+using SevenZip.Interop.Streams;
 using SevenZipSharp.Interop;
 using SevenZipSharp.Native.Streams;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
 
 namespace SevenZipSharp.Native.Callbacks;
 
@@ -22,39 +27,73 @@ internal sealed unsafe partial class ExtractCallback(
     private ArchiveEntry? current;
     private readonly List<NativeOutputStream> adapters = [];
 
-    public int SetTotal(ulong total) => Check();
-    public int SetCompleted(ulong* completed) => Check();
-    public int PrepareOperation(int askMode) => Check();
-
-    private int Check()
+    public HRESULT SetTotal(ulong total)
     {
-        using var callback = context.EnterCallback();
-        try { context.Check(); return 0; }
-        catch (Exception error) { return context.Fail(error); }
+        return Check();
     }
 
-    public int GetStream(uint index, nint* result, int askMode)
+    public HRESULT SetCompleted(in ulong completed)
     {
-        *result = 0;
+        return Check();
+    }
+
+    public HRESULT PrepareOperation(int askMode)
+    {
+        return Check();
+    }
+
+    private HRESULT Check()
+    {
+        using var callback = context.EnterCallback();
+        try
+        {
+            context.Check();
+
+            return HRESULT.S_OK;
+        }
+        catch (Exception error)
+        {
+            return (HRESULT)context.Fail(error);
+        }
+    }
+
+    public HRESULT GetStream(uint index, out ISequentialOutStream outStream, int askMode)
+    {
+        outStream = null!;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
             current = index < entries.Count ? entries[(int)index] : throw new InvalidDataException("The engine requested an invalid entry.");
             if (test || askMode != 0 || !selected.Contains(current.Index) || current.EntryType == ArchiveEntryType.Directory)
-                return 0;
+            {
+                return HRESULT.S_OK;
+            }
+
             Stream? destination = sink.Open(current);
-            if (destination is null) return 0;
-            if (!destination.CanWrite) throw new ArgumentException("The entry destination is not writable.");
+            if (destination is null)
+            {
+                return HRESULT.S_OK;
+            }
+
+            if (!destination.CanWrite)
+            {
+                throw new ArgumentException("The entry destination is not writable.");
+            }
+
             var adapter = new NativeOutputStream(destination, context, current);
             adapters.Add(adapter);
-            *result = (nint)ComInterfaceMarshaller<ISequentialOutStream>.ConvertToUnmanaged(adapter);
-            return 0;
+            outStream = adapter;
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int SetOperationResult(int result)
+    public HRESULT SetOperationResult(int result)
     {
         using var callback = context.EnterCallback();
         try
@@ -63,39 +102,61 @@ internal sealed unsafe partial class ExtractCallback(
             if (current is not null && selected.Contains(current.Index))
             {
                 sink.Complete(current, result == 0 && !context.HasFailure);
-                if (result == 0) context.EntryCompleted(current);
+                if (result == 0)
+                {
+                    context.EntryCompleted(current);
+                }
             }
             context.Check();
-            return context.HasFailure ? NativeMethods.Fail : 0;
+
+            return context.HasFailure ? HRESULT.E_FAIL : HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int ReportExtractResult(uint indexType, uint index, int result)
+    public HRESULT ReportExtractResult(uint indexType, uint index, int result)
     {
         using var callback = context.EnterCallback();
         try
         {
             context.Result(result, indexType == 1 && index < entries.Count ? entries[(int)index] : null);
             context.Check();
-            return context.HasFailure ? NativeMethods.Fail : 0;
+
+            return context.HasFailure ? HRESULT.E_FAIL : HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int CryptoGetTextPassword(nint* result)
+    public HRESULT CryptoGetTextPassword(BSTR* result)
     {
-        *result = 0;
+        *result = default;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
-            if (password is null) throw new ArchiveException(ArchiveErrorCode.PasswordRequired, "This entry requires a password.");
-            *result = Marshal.StringToBSTR(password);
-            return 0;
+            if (password is null)
+            {
+                throw new ArchiveException(ArchiveErrorCode.PasswordRequired, "This entry requires a password.");
+            }
+
+            *result = (BSTR)Marshal.StringToBSTR(password);
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public void Dispose() => GC.KeepAlive(adapters);
+    public void Dispose()
+    {
+        GC.KeepAlive(adapters);
+    }
 }

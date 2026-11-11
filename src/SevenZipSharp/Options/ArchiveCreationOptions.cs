@@ -17,7 +17,11 @@ public sealed record ArchiveCreationOptions
     internal ArchiveCreationOptions Capture()
     {
         ArgumentOutOfRangeException.ThrowIfNegative(MaximumEntries);
-        if (!Enum.IsDefined(UnsupportedEntries)) throw new ArgumentOutOfRangeException(nameof(UnsupportedEntries));
+        if (!Enum.IsDefined(UnsupportedEntries))
+        {
+            throw new ArgumentOutOfRangeException(nameof(UnsupportedEntries));
+        }
+
         return this with { };
     }
 }

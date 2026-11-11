@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SevenZipSharp.Sample": {
+      "commandName": "Project",
+      "remoteDebugEnabled": false
+    }
+  }
+}

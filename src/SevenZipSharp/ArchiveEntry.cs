@@ -36,9 +36,13 @@ public sealed class ArchiveEntry
 
     /// <summary>Copies a regular file's contents to a borrowed stream, leaving it open.</summary>
     public void CopyTo(Stream destination, IProgress<ArchiveProgress>? progress = null, CancellationToken cancellationToken = default)
-        => Owner.CopyEntry(this, destination, progress, cancellationToken);
+    {
+        Owner.CopyEntry(this, destination, progress, cancellationToken);
+    }
 
     /// <summary>Copies content on a worker, leaving the borrowed destination open.</summary>
     public Task CopyToAsync(Stream destination, IProgress<ArchiveProgress>? progress = null, CancellationToken cancellationToken = default)
-        => Owner.CopyEntryAsync(this, destination, progress, cancellationToken);
+    {
+        return Owner.CopyEntryAsync(this, destination, progress, cancellationToken);
+    }
 }

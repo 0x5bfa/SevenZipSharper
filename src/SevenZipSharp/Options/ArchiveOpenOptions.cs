@@ -16,13 +16,18 @@ public sealed record ArchiveOpenOptions
     public Func<string, Stream?>? VolumeResolver { get; init; }
 
     /// <summary>Returns a description without exposing the password.</summary>
-    public override string ToString() => $"{nameof(ArchiveOpenOptions)} {{ FormatHint = {FormatHint}, MaximumEntries = {MaximumEntries}, Password = <redacted> }}";
+    public override string ToString()
+    {
+        return $"{nameof(ArchiveOpenOptions)} {{ FormatHint = {FormatHint}, MaximumEntries = {MaximumEntries}, Password = <redacted> }}";
+    }
 
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfNegative(MaximumEntries);
         ArgumentOutOfRangeException.ThrowIfNegative(MaximumSearchBytes);
         if (FormatHint is { } format && (!Enum.IsDefined(format) || format == ArchiveFormat.Other))
+        {
             throw new ArgumentException("A format hint must identify a named format.", nameof(FormatHint));
+        }
     }
 }

@@ -17,7 +17,10 @@ public sealed class ArchiveEditor
     public IReadOnlyList<ArchiveEntry> Entries => owner.Entries;
 
     /// <summary>Removes a source entry from the replacement output.</summary>
-    public void Delete(ArchiveEntry entry) => Change(entry, null);
+    public void Delete(ArchiveEntry entry)
+    {
+        Change(entry, null);
+    }
 
     /// <summary>Changes a source entry's logical name while retaining its content where supported.</summary>
     public void Rename(ArchiveEntry entry, string newFullName)
@@ -33,7 +36,11 @@ public sealed class ArchiveEditor
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
         ArgumentNullException.ThrowIfNull(openRead);
-        if (entry.EntryType != ArchiveEntryType.File) throw new NotSupportedException("Only regular files can have replacement content.");
+        if (entry.EntryType != ArchiveEntryType.File)
+        {
+            throw new NotSupportedException("Only regular files can have replacement content.");
+        }
+
         var metadata = options is null ? WriteItem.FromEntry(entry).Options : WriteItem.CaptureOptions(options);
         Change(entry, new(entry.FullName, false, length, openRead, metadata, (uint)entry.Index, true, true));
     }
@@ -50,13 +57,23 @@ public sealed class ArchiveEditor
     private void Change(ArchiveEntry entry, WriteItem? item)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        if (!ReferenceEquals(entry.Owner, owner)) throw new ArgumentException("The entry belongs to another archive.", nameof(entry));
+        if (!ReferenceEquals(entry.Owner, owner))
+        {
+            throw new ArgumentException("The entry belongs to another archive.", nameof(entry));
+        }
+
         if (entry.EntryType is not (ArchiveEntryType.File or ArchiveEntryType.Directory))
+        {
             throw new NotSupportedException("Editing links and special entries is not supported.");
+        }
+
         lock (gate)
         {
             Check();
-            if (!changes.TryAdd(entry.Index, item)) throw new InvalidOperationException("Conflicting edits target the same source entry.");
+            if (!changes.TryAdd(entry.Index, item))
+            {
+                throw new InvalidOperationException("Conflicting edits target the same source entry.");
+            }
         }
     }
 
@@ -69,7 +86,10 @@ public sealed class ArchiveEditor
 
     private void Check()
     {
-        if (consumed) throw new InvalidOperationException("This editor has already been consumed.");
+        if (consumed)
+        {
+            throw new InvalidOperationException("This editor has already been consumed.");
+        }
     }
 
     /// <summary>Writes a replacement archive to a distinct borrowed destination.</summary>
@@ -97,15 +117,30 @@ public sealed class ArchiveEditor
         Stream destination, ArchiveUpdateOptions? options, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (ReferenceEquals(destination, owner.Source)) throw new ArgumentException("Replacement output must not alias the source.", nameof(destination));
+        if (ReferenceEquals(destination, owner.Source))
+        {
+            throw new ArgumentException("Replacement output must not alias the source.", nameof(destination));
+        }
+
         WriteConfiguration config;
-        if (options?.WriteOptions is { } writeOptions) config = writeOptions.Capture();
+        if (options?.WriteOptions is { } writeOptions)
+        {
+            config = writeOptions.Capture();
+        }
         else
         {
-            if (Entries.Any(entry => entry.IsEncrypted)) throw new ArgumentException("Editing encrypted archives requires explicit write options.", nameof(options));
+            if (Entries.Any(entry => entry.IsEncrypted))
+            {
+                throw new ArgumentException("Editing encrypted archives requires explicit write options.", nameof(options));
+            }
+
             config = new(owner.Format, null, []);
         }
-        if (config.Format != owner.Format) throw new ArgumentException("An editor cannot change the archive format.", nameof(options));
+        if (config.Format != owner.Format)
+        {
+            throw new ArgumentException("An editor cannot change the archive format.", nameof(options));
+        }
+
         lock (gate)
         {
             Check();
@@ -127,7 +162,10 @@ public sealed class ArchiveEditor
         {
             owner.MarkFaulted();
             if (error is OperationCanceledException && lease.CallerToken.IsCancellationRequested)
+            {
                 throw new OperationCanceledException("The archive edit was canceled.", error, lease.CallerToken);
+            }
+
             throw;
         }
     }

@@ -4,12 +4,23 @@ internal sealed class TestDirectory : IDisposable
 {
     internal string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SevenZipSharp.Tests-" + Guid.NewGuid().ToString("N"));
     internal TestDirectory() => Directory.CreateDirectory(Path);
-    internal string File(string name) => System.IO.Path.Combine(Path, name);
+    internal string File(string name)
+    {
+        return System.IO.Path.Combine(Path, name);
+    }
+
     public void Dispose()
     {
         string root = System.IO.Path.GetFullPath(Path);
         string expected = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SevenZipSharp.Tests-");
-        if (!root.StartsWith(expected, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Unexpected test directory.");
-        if (Directory.Exists(root)) Directory.Delete(root, true);
+        if (!root.StartsWith(expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Unexpected test directory.");
+        }
+
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, true);
+        }
     }
 }

@@ -10,8 +10,16 @@ internal static class TemporaryArchivePublisher
         string directory = Path.GetDirectoryName(target)!;
         ExtractionPathPolicy.ValidateSegment(Path.GetFileName(target));
         ExtractionPathPolicy.EnsureNoReparsePoints(target);
-        if (!overwrite && File.Exists(target)) throw new IOException("The destination archive already exists.");
-        if (Directory.Exists(target)) throw new IOException("The destination archive is a directory.");
+        if (!overwrite && File.Exists(target))
+        {
+            throw new IOException("The destination archive already exists.");
+        }
+
+        if (Directory.Exists(target))
+        {
+            throw new IOException("The destination archive is a directory.");
+        }
+
         Directory.CreateDirectory(directory);
         string temporary = Path.Combine(directory, $".sevenzipsharp-{Guid.NewGuid():N}.tmp");
         try

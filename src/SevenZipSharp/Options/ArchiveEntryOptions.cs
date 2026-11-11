@@ -11,7 +11,13 @@ public sealed record ArchiveEntryOptions
     internal void Validate()
     {
         if ((Attributes.GetValueOrDefault() & (FileAttributes.ReparsePoint | FileAttributes.Device)) != 0)
+        {
             throw new NotSupportedException("Links and device entries cannot be created as regular files.");
-        if (LastWriteTime is { } time) _ = time.ToFileTime();
+        }
+
+        if (LastWriteTime is { } time)
+        {
+            _ = time.ToFileTime();
+        }
     }
 }

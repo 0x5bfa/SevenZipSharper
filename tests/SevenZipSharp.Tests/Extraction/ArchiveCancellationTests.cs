@@ -37,27 +37,62 @@ public sealed class ArchiveCancellationTests
 
     private sealed class InlineProgress(Action<ArchiveProgress> report) : IProgress<ArchiveProgress>
     {
-        public void Report(ArchiveProgress value) => report(value);
+        public void Report(ArchiveProgress value)
+        {
+            report(value);
+        }
     }
 
     private sealed class SequentialOutput : Stream
     {
         private readonly MemoryStream buffer = new();
-        internal byte[] ToArray() => buffer.ToArray();
+        internal byte[] ToArray()
+        {
+            return buffer.ToArray();
+        }
+
         public override bool CanRead => false;
         public override bool CanWrite => buffer.CanWrite;
         public override bool CanSeek => false;
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
         public override long Length => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin loc) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override int Read(byte[] value, int offset, int count) => throw new NotSupportedException();
-        public override void Write(byte[] value, int offset, int count) => buffer.Write(value, offset, count);
-        public override void Write(ReadOnlySpan<byte> value) => buffer.Write(value);
-        public override void Flush() => buffer.Flush();
+        public override long Seek(long offset, SeekOrigin loc)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] value, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] value, int offset, int count)
+        {
+            buffer.Write(value, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> value)
+        {
+            buffer.Write(value);
+        }
+
+        public override void Flush()
+        {
+            buffer.Flush();
+        }
+
         protected override void Dispose(bool disposing)
         {
-            if (disposing) buffer.Dispose();
+            if (disposing)
+            {
+                buffer.Dispose();
+            }
+
             base.Dispose(disposing);
         }
     }

@@ -179,7 +179,11 @@ public sealed class ArchiveCreationTests
         internal int DisposeCount { get; private set; }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) DisposeCount++;
+            if (disposing)
+            {
+                DisposeCount++;
+            }
+
             base.Dispose(disposing);
         }
     }

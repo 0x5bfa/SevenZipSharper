@@ -1,42 +1,47 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
+using NativeExtractCallback = SevenZip.Interop.Archives.IArchiveExtractCallback;
+using NativeInArchive = SevenZip.Interop.Archives.IInArchive;
+using NativeOutArchive = SevenZip.Interop.Archives.IOutArchive;
 using SevenZip.Interop.Runtime;
-using SevenZipSharp.Interop;
 using SevenZipSharp.Native.Callbacks;
 using SevenZipSharp.Native.Streams;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Com.StructuredStorage;
 
 namespace SevenZipSharp.Native;
 
 internal sealed unsafe class NativeArchiveSession : IDisposable
 {
-    private readonly SevenZipObject instance;
+    private readonly ComObject archiveObject;
+    private readonly NativeInArchive archive;
     private readonly NativeInputStream input;
     private readonly OpenCallback openCallback;
-    private nint inputPointer;
-    private nint openPointer;
     private bool disposed;
+
     internal NativeFormat Format { get; }
     internal int ExtractionInvocations { get; private set; }
-    internal nint Handle => instance.DangerousGetHandle();
-    private nint* Vtable => *(nint**)Handle;
 
-    private NativeArchiveSession(SevenZipObject instance, NativeFormat format, NativeInputStream input,
-        OpenCallback openCallback, nint inputPointer, nint openPointer)
+    private NativeArchiveSession(ComObject archiveObject, NativeInArchive archive, NativeFormat format,
+        NativeInputStream input, OpenCallback openCallback)
     {
-        this.instance = instance;
+        this.archiveObject = archiveObject;
+        this.archive = archive;
         Format = format;
         this.input = input;
         this.openCallback = openCallback;
-        this.inputPointer = inputPointer;
-        this.openPointer = openPointer;
     }
 
     internal static NativeArchiveSession Open(Stream source, ArchiveOpenOptions options, OperationContext context)
     {
         long origin = source.Position;
         long length = checked(source.Length - origin);
-        if (length < 0) throw new ArgumentException("The source position is beyond its end.", nameof(source));
+        if (length < 0)
+        {
+            throw new ArgumentException("The source position is beyond its end.", nameof(source));
+        }
+
         var runtime = NativeRuntime.Instance;
         byte[] prefix = new byte[(int)Math.Min(length, 8192)];
         source.ReadExactly(prefix);
@@ -52,41 +57,58 @@ internal sealed unsafe class NativeArchiveSession : IDisposable
             context.Check();
             source.Position = origin;
             var instance = runtime.TryCreateReader(format);
-            if (instance is null) continue;
+            if (instance is null)
+            {
+                continue;
+            }
+
             var input = new NativeInputStream(source, origin, length, context);
             var callback = new OpenCallback(options, context);
-            nint inputPointer = 0, callbackPointer = 0;
+            NativeInArchive? archive = null;
+            ComObject? archiveObject = null;
             NativeArchiveSession? session = null;
             bool transferred = false;
             try
             {
-                inputPointer = (nint)ComInterfaceMarshaller<IInStream>.ConvertToUnmanaged(input);
-                callbackPointer = (nint)ComInterfaceMarshaller<IArchiveOpenCallback>.ConvertToUnmanaged(callback);
-                session = new(instance, format, input, callback, inputPointer, callbackPointer);
+                archive = UniqueComInterfaceMarshaller<NativeInArchive>.ConvertToManaged((void*)instance.DangerousGetHandle())
+                    ?? throw new InvalidOperationException("The 7-Zip factory returned a null archive interface.");
+                archiveObject = (ComObject)(object)archive;
+                instance.Dispose();
+                session = new(archiveObject, archive, format, input, callback);
                 ulong search = (ulong)options.MaximumSearchBytes;
-                int result = ((delegate* unmanaged[Stdcall]<nint, nint, ulong*, nint, int>)session.Vtable[3])
-                    (session.Handle, inputPointer, &search, callbackPointer);
-                if (context.HasFailure) context.Complete(result);
-                if (result == 0)
+                HRESULT result = archive.Open(input, search, callback);
+                if (context.HasFailure)
+                {
+                    context.Complete(result);
+                }
+
+                if (result == HRESULT.S_OK)
                 {
                     session.Attach(null);
                     transferred = true;
+
                     return session;
                 }
-                if (result < 0) NativeMethods.Check(result);
+                if (result.Failed)
+                {
+                    result.ThrowOnFailure();
+                }
             }
             finally
             {
-                if (session is not null && !transferred) session.Dispose();
+                if (session is not null && !transferred)
+                {
+                    session.Dispose();
+                }
                 else if (session is null)
                 {
-                    if (callbackPointer != 0) ComInterfaceMarshaller<IArchiveOpenCallback>.Free((void*)callbackPointer);
-                    if (inputPointer != 0) ComInterfaceMarshaller<IInStream>.Free((void*)inputPointer);
+                    archiveObject?.FinalRelease();
                     instance.Dispose();
                     callback.Dispose();
                 }
             }
         }
+
         throw new InvalidDataException("The stream is not a supported archive, or its headers are invalid.");
     }
 
@@ -95,56 +117,79 @@ internal sealed unsafe class NativeArchiveSession : IDisposable
         get
         {
             uint count = 0;
-            NativeMethods.Check(((delegate* unmanaged[Stdcall]<nint, uint*, int>)Vtable[5])(Handle, &count));
+            archive.GetNumberOfItems(ref count).ThrowOnFailure();
+
             return count;
         }
     }
 
-    internal NativeVariant Property(uint index, NativePropertyId id)
+    internal PROPVARIANT Property(uint index, NativePropertyId id)
     {
-        NativeVariant value = default;
+        PROPVARIANT value = default;
         try
         {
-            NativeMethods.Check(((delegate* unmanaged[Stdcall]<nint, uint, uint, NativeVariant*, int>)Vtable[6])(Handle, index, (uint)id, &value));
+            archive.GetProperty(index, (uint)id, ref value).ThrowOnFailure();
+
             return value;
         }
-        catch { value.Clear(); throw; }
+        catch
+        {
+            InteropHelpers.Clear(ref value);
+
+            throw;
+        }
     }
 
-    internal NativeVariant ArchiveProperty(NativePropertyId id)
+    internal PROPVARIANT ArchiveProperty(NativePropertyId id)
     {
-        NativeVariant value = default;
+        PROPVARIANT value = default;
         try
         {
-            NativeMethods.Check(((delegate* unmanaged[Stdcall]<nint, uint, NativeVariant*, int>)Vtable[8])(Handle, (uint)id, &value));
+            archive.GetArchiveProperty((uint)id, ref value).ThrowOnFailure();
+
             return value;
         }
-        catch { value.Clear(); throw; }
+        catch
+        {
+            InteropHelpers.Clear(ref value);
+
+            throw;
+        }
     }
 
-    internal nint QueryWriter()
+    internal NativeOutArchive? QueryWriter()
     {
-        int result = Marshal.QueryInterface(Handle, in NativeMethods.OutArchiveId, out nint writer);
-        if (result == unchecked((int)0x80004002)) return 0;
-        NativeMethods.Check(result);
-        return writer;
+        return archive as NativeOutArchive;
     }
 
-    internal int Extract(uint[] indexes, bool test, ExtractCallback callback, OperationContext context)
+    internal HRESULT Extract(uint[] indexes, bool test, ExtractCallback callback, OperationContext context)
     {
         ExtractionInvocations++;
         Attach(context);
+        void* archivePointer = null;
         void* callbackPointer = null;
         try
         {
-            callbackPointer = ComInterfaceMarshaller<IArchiveExtractCallback>.ConvertToUnmanaged(callback);
+            archivePointer = ComInterfaceMarshaller<NativeInArchive>.ConvertToUnmanaged(archive);
+            callbackPointer = ComInterfaceMarshaller<NativeExtractCallback>.ConvertToUnmanaged(callback);
             fixed (uint* selected = indexes)
-                return ((delegate* unmanaged[Stdcall]<nint, uint*, uint, int, void*, int>)Vtable[7])
-                    (Handle, selected, (uint)indexes.Length, test ? 1 : 0, callbackPointer);
+            {
+                uint empty = 0;
+                uint* indices = selected;
+                if (indices == null)
+                {
+                    indices = &empty;
+                }
+
+                // WinMD cannot express this pointer's element count, so pass the full array at its ABI slot.
+                return ((delegate* unmanaged[Stdcall]<void*, uint*, uint, int, void*, HRESULT>)(*(void***)archivePointer)[7])(
+                    archivePointer, indices, (uint)indexes.Length, test ? 1 : 0, callbackPointer);
+            }
         }
         finally
         {
-            ComInterfaceMarshaller<IArchiveExtractCallback>.Free(callbackPointer);
+            ComInterfaceMarshaller<NativeExtractCallback>.Free(callbackPointer);
+            ComInterfaceMarshaller<NativeInArchive>.Free(archivePointer);
             Attach(null);
         }
     }
@@ -157,16 +202,19 @@ internal sealed unsafe class NativeArchiveSession : IDisposable
 
     public void Dispose()
     {
-        if (disposed) return;
+        if (disposed)
+        {
+            return;
+        }
+
         disposed = true;
-        try { _ = ((delegate* unmanaged[Stdcall]<nint, int>)Vtable[4])(Handle); }
+        try { _ = archive.Close(); }
+        catch (COMException) { }
         finally
         {
-            instance.Dispose();
-            ComInterfaceMarshaller<IArchiveOpenCallback>.Free((void*)openPointer);
-            ComInterfaceMarshaller<IInStream>.Free((void*)inputPointer);
-            openPointer = inputPointer = 0;
             openCallback.Dispose();
+            archiveObject.FinalRelease();
         }
     }
+
 }

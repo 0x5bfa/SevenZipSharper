@@ -83,7 +83,11 @@ public sealed class ArchiveLifetimeTests
         var outputs = new List<MemoryStream>();
         archive.Extract(archive.Entries, entry =>
         {
-            if (entry.FullName == "b") return null;
+            if (entry.FullName == "b")
+            {
+                return null;
+            }
+
             var output = new MemoryStream();
             outputs.Add(output);
             return output;
@@ -108,7 +112,10 @@ public sealed class ArchiveLifetimeTests
 
     private sealed class InlineProgress(Action<ArchiveProgress> report) : IProgress<ArchiveProgress>
     {
-        public void Report(ArchiveProgress value) => report(value);
+        public void Report(ArchiveProgress value)
+        {
+            report(value);
+        }
     }
 
     private sealed class GatedOutput(ManualResetEventSlim entered, ManualResetEventSlim release) : MemoryStream
@@ -116,13 +123,20 @@ public sealed class ArchiveLifetimeTests
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             entered.Set();
-            if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("The test did not release the destination.");
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The test did not release the destination.");
+            }
+
             base.Write(buffer);
         }
     }
 
     private sealed class FailingOutput(Exception error) : MemoryStream
     {
-        public override void Write(ReadOnlySpan<byte> buffer) => throw error;
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            throw error;
+        }
     }
 }

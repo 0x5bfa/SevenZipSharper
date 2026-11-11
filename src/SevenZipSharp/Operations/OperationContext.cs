@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using SevenZipSharp.Interop;
+using Windows.Win32.Foundation;
 
 namespace SevenZipSharp.Operations;
 
@@ -21,24 +22,36 @@ internal sealed class OperationContext(
     internal static Archive? CallbackOwner => callbackOwner;
     internal CancellationToken CancellationToken => cancellationToken;
     internal bool HasFailure => Volatile.Read(ref failure) is not null;
-    internal CallbackScope EnterCallback() => new(owner);
-    internal void Check() => cancellationToken.ThrowIfCancellationRequested();
-    internal int Fail(Exception exception)
+    internal CallbackScope EnterCallback()
     {
-        Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(exception), null);
-        return exception is OperationCanceledException ? NativeMethods.Abort : NativeMethods.Fail;
+        return new(owner);
     }
 
-    internal void Complete(int result)
+    internal void Check()
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    internal HRESULT Fail(Exception exception)
+    {
+        Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(exception), null);
+        return exception is OperationCanceledException ? HRESULT.E_ABORT : HRESULT.E_FAIL;
+    }
+
+    internal void Complete(HRESULT result)
     {
         Volatile.Read(ref failure)?.Throw();
         Check();
-        NativeMethods.Check(result);
+        result.ThrowOnFailure();
     }
 
     internal void Result(int result, ArchiveEntry? entry = null)
     {
-        if (result == 0) return;
+        if (result == 0)
+        {
+            return;
+        }
+
         Exception error = result switch
         {
             1 => new NotSupportedException("The entry uses an unsupported compression method."),
@@ -62,12 +75,20 @@ internal sealed class OperationContext(
 
     internal void Report(ArchiveEntry? entry, bool force)
     {
-        if (progress is null) return;
+        if (progress is null)
+        {
+            return;
+        }
+
         using var callback = EnterCallback();
         lock (progressGate)
         {
             long now = Stopwatch.GetTimestamp();
-            if (!force && Stopwatch.GetElapsedTime(lastReport, now) < TimeSpan.FromMilliseconds(50)) return;
+            if (!force && Stopwatch.GetElapsedTime(lastReport, now) < TimeSpan.FromMilliseconds(50))
+            {
+                return;
+            }
+
             lastReport = now;
             progress.Report(new(phase, entry, Interlocked.Read(ref bytes), totalBytes, Volatile.Read(ref entries)));
         }
@@ -81,6 +102,9 @@ internal sealed class OperationContext(
             previous = callbackOwner;
             callbackOwner = owner;
         }
-        public void Dispose() => callbackOwner = previous;
+        public void Dispose()
+        {
+            callbackOwner = previous;
+        }
     }
 }

@@ -1,9 +1,13 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
-using SevenZipSharp.Interop;
+using NativeOutArchive = SevenZip.Interop.Archives.IOutArchive;
+using NativeSetProperties = SevenZip.Interop.Archives.ISetProperties;
+using SevenZip.Interop.Runtime;
 using SevenZipSharp.Native;
 using SevenZipSharp.Native.Callbacks;
 using SevenZipSharp.Native.Streams;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Com.StructuredStorage;
 
 namespace SevenZipSharp.Operations;
 
@@ -13,10 +17,15 @@ internal static unsafe class WriteOperation
     {
         ArgumentNullException.ThrowIfNull(destination);
         if (!destination.CanWrite || !destination.CanSeek)
+        {
             throw new ArgumentException("Archive writing currently requires a writable, seekable destination.", nameof(destination));
+        }
+
         if (options.Format is ArchiveFormat.GZip or ArchiveFormat.BZip2 or ArchiveFormat.Xz &&
             (items.Count != 1 || items[0].IsDirectory))
+        {
             throw new ArgumentException("A single-payload compression format requires exactly one regular file.");
+        }
     }
 
     internal static void Write(IReadOnlyList<WriteItem> items, Stream destination, WriteConfiguration options,
@@ -24,70 +33,95 @@ internal static unsafe class WriteOperation
     {
         Validate(destination, items, options);
         context.Check();
-        using var created = session is null ? NativeRuntime.Instance.Create(NativeRuntime.Instance.Writable(options.Format), NativeMethods.OutArchiveId) : null;
-        nint writer = session is null ? created!.DangerousGetHandle() : session.QueryWriter();
-        if (writer == 0) throw new NotSupportedException("The archive handler does not support editing.");
+        NativeOutArchive? writer = session is null
+            ? CreateWriter(NativeRuntime.Instance.Writable(options.Format))
+            : session.QueryWriter();
+        if (writer is null)
+        {
+            throw new NotSupportedException("The archive handler does not support editing.");
+        }
+
+        ComObject? uniqueWriter = session is null ? (ComObject)(object)writer : null;
         var callback = new UpdateCallback(items, context, options.Password, sourcePassword ?? options.Password, destination, archiveSource);
         var output = new NativeOutputStream(destination, context);
-        void* outputPointer = null;
-        void* callbackPointer = null;
-        int result = NativeMethods.Fail;
+        HRESULT result = HRESULT.E_FAIL;
         try
         {
             SetProperties(writer, options);
             session?.Attach(context);
-            outputPointer = ComInterfaceMarshaller<ISequentialOutStream>.ConvertToUnmanaged(output);
-            callbackPointer = ComInterfaceMarshaller<IArchiveUpdateCallback>.ConvertToUnmanaged(callback);
-            result = ((delegate* unmanaged[Stdcall]<nint, void*, uint, void*, int>)(*(nint**)writer)[3])
-                (writer, outputPointer, checked((uint)items.Count), callbackPointer);
+            HRESULT updateResult = writer.UpdateItems(output, checked((uint)items.Count), callback);
+            result = updateResult;
         }
-        catch (Exception error) { context.Fail(error); }
+        catch (Exception error)
+        {
+            context.Fail(error);
+        }
         finally
         {
-            ComInterfaceMarshaller<IArchiveUpdateCallback>.Free(callbackPointer);
-            ComInterfaceMarshaller<ISequentialOutStream>.Free(outputPointer);
             callback.Dispose();
             session?.Attach(null);
-            if (session is not null) Marshal.Release(writer);
-            GC.KeepAlive(output);
+            uniqueWriter?.FinalRelease();
         }
+
         context.Complete(result);
         context.Report(null, true);
     }
 
-    private static void SetProperties(nint writer, WriteConfiguration configuration)
+    private static NativeOutArchive CreateWriter(NativeFormat format)
     {
-        if (configuration.Properties.Count == 0) return;
-        NativeMethods.Check(Marshal.QueryInterface(writer, in NativeMethods.SetPropertiesId, out nint setter));
+        using var instance = NativeRuntime.Instance.Create(format, typeof(NativeOutArchive).GUID);
+
+        return UniqueComInterfaceMarshaller<NativeOutArchive>.ConvertToManaged((void*)instance.DangerousGetHandle())
+            ?? throw new InvalidOperationException("The 7-Zip factory returned a null writer interface.");
+    }
+
+    private static void SetProperties(NativeOutArchive writer, WriteConfiguration configuration)
+    {
+        if (configuration.Properties.Count == 0)
+        {
+            return;
+        }
+
         nint[] names = new nint[configuration.Properties.Count];
-        var values = new NativeVariant[names.Length];
+        var values = new PROPVARIANT[names.Length];
+        NativeSetProperties? setter = writer as NativeSetProperties;
+        if (setter is null)
+        {
+            throw new NotSupportedException("The archive handler does not support compression properties.");
+        }
+
         try
         {
             for (int i = 0; i < names.Length; i++)
             {
                 var property = configuration.Properties[i];
                 names[i] = Marshal.StringToCoTaskMemUni(property.Name);
-                values[i] = property.Value switch
+                values[i] = (property.Value switch
                 {
-                    string text => NativeVariant.FromString(text),
-                    bool flag => NativeVariant.FromBoolean(flag),
-                    uint number => NativeVariant.FromUInt32(number),
+                    string text => InteropHelpers.CreateString(text),
+                    bool flag => InteropHelpers.CreateBoolean(flag),
+                    uint number => InteropHelpers.CreateUInt32(number),
                     _ => throw new InvalidOperationException("Unsupported native property value.")
-                };
+                });
             }
             fixed (nint* nativeNames = names)
-            fixed (NativeVariant* nativeValues = values)
-                NativeMethods.Check(((delegate* unmanaged[Stdcall]<nint, nint*, NativeVariant*, uint, int>)(*(nint**)setter)[3])
-                    (setter, nativeNames, nativeValues, (uint)names.Length));
+            fixed (PROPVARIANT* nativeValues = values)
+            {
+                // The WinMD projection does not preserve the count of this PROPVARIANT array.
+                setter.SetProperties((ushort**)nativeNames, in *nativeValues, (uint)names.Length).ThrowOnFailure();
+            }
         }
         finally
         {
             for (int i = 0; i < names.Length; i++)
             {
-                if (names[i] != 0) Marshal.FreeCoTaskMem(names[i]);
-                values[i].Clear();
+                if (names[i] != 0)
+                {
+                    Marshal.FreeCoTaskMem(names[i]);
+                }
+
+                InteropHelpers.Clear(ref values[i]);
             }
-            Marshal.Release(setter);
         }
     }
 }

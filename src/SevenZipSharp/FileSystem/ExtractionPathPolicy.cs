@@ -9,12 +9,22 @@ internal static class ExtractionPathPolicy
     {
         string relative = name.Replace('\\', '/').TrimEnd('/');
         if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith('/'))
+        {
             throw new InvalidDataException("An entry must have a nonempty relative path.");
-        foreach (string segment in relative.Split('/')) ValidateSegment(segment);
+        }
+
+        foreach (string segment in relative.Split('/'))
+        {
+            ValidateSegment(segment);
+        }
+
         string path = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
         string prefix = Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar;
         if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
             throw new InvalidDataException("An entry escapes the destination directory.");
+        }
+
         return path;
     }
 
@@ -22,13 +32,18 @@ internal static class ExtractionPathPolicy
     {
         if (segment is "" or "." or ".." || segment.EndsWith('.') || segment.EndsWith(' ') ||
             segment.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || segment.Contains(':'))
+        {
             throw new InvalidDataException($"Unsupported filesystem path component '{segment}'.");
+        }
+
         string stem = segment.Split('.')[0];
         if (devices.Contains(stem) ||
             (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) ||
                                 stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
              "123456789¹²³".Contains(stem[3])))
+        {
             throw new InvalidDataException($"Reserved Windows device name '{segment}'.");
+        }
     }
 
     internal static void EnsureNoReparsePoints(string path)
@@ -40,7 +55,9 @@ internal static class ExtractionPathPolicy
             catch (FileNotFoundException) { continue; }
             catch (DirectoryNotFoundException) { continue; }
             if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
                 throw new IOException($"Reparse points are not permitted in an extraction or publication path: '{current}'.");
+            }
         }
     }
 }

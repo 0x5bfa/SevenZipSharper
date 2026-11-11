@@ -9,8 +9,15 @@ internal sealed record WriteItem(string FullName, bool IsDirectory, long Length,
         string name = fullName.Replace('\\', '/');
         if (name[0] == '/' || name.Contains(':') || name.Contains('\0') ||
             name.TrimEnd('/').Split('/').Any(part => part is "" or "." or ".."))
+        {
             throw new ArgumentException("An entry name must be a relative logical path without empty, dot, or parent segments.", nameof(fullName));
-        if (!directory && name.EndsWith('/')) throw new ArgumentException("A regular file name cannot end in '/'.", nameof(fullName));
+        }
+
+        if (!directory && name.EndsWith('/'))
+        {
+            throw new ArgumentException("A regular file name cannot end in '/'.", nameof(fullName));
+        }
+
         return directory ? name.TrimEnd('/') + "/" : name;
     }
 
@@ -21,8 +28,11 @@ internal sealed record WriteItem(string FullName, bool IsDirectory, long Length,
         return snapshot;
     }
 
-    internal static WriteItem FromEntry(ArchiveEntry entry) => new(entry.FullName,
+    internal static WriteItem FromEntry(ArchiveEntry entry)
+    {
+        return new(entry.FullName,
         entry.EntryType == ArchiveEntryType.Directory, entry.Length ?? 0, null,
         new() { LastWriteTime = entry.LastWriteTime, Attributes = entry.NativeAttributes is { } attributes ? (FileAttributes)attributes : null },
         (uint)entry.Index, false, false);
+    }
 }

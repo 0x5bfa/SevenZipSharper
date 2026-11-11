@@ -17,7 +17,9 @@ public sealed class ArchiveFormatContractTests
             new ArchiveUpdateOptions { WriteOptions = new ZipWriteOptions { Password = password } }
         ];
         foreach (var option in options)
+        {
             Assert.That(option.ToString(), Does.Not.Contain(password));
+        }
     }
 
     [TestCase(ArchiveFormat.SevenZip)]

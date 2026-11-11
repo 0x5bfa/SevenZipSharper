@@ -55,16 +55,27 @@ public sealed class ArchiveStreamContractTests
         public override bool CanSeek => false;
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
         public override long Length => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin loc) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin loc)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class ReadAndDisposeFailure(Exception error) : MemoryStream("abc"u8.ToArray())
     {
         internal int DisposeCount { get; private set; }
-        public override int Read(Span<byte> buffer) => throw error;
+        public override int Read(Span<byte> buffer)
+        {
+            throw error;
+        }
+
         protected override void Dispose(bool disposing)
         {
-            if (disposing) DisposeCount++;
+            if (disposing)
+            {
+                DisposeCount++;
+            }
+
             base.Dispose(disposing);
             throw new IOException("secondary cleanup failure");
         }

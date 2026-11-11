@@ -16,7 +16,10 @@ try
         using var archive = await ArchiveFile.OpenReadAsync(input);
         Console.WriteLine($"{archive.Info.FormatName}: {archive.Entries.Count} entries");
         foreach (var entry in archive.Entries)
+        {
             Console.WriteLine($"{entry.EntryType,-14} {entry.Length,12} {entry.FullName}");
+        }
+
         return 0;
     }
     if (args is ["verify", var verifyInput])
@@ -76,7 +79,11 @@ static void RunSelfTest()
         using var archive = Archive.Open(encoded, new() { Password = test.Password }, true);
         using var decoded = new MemoryStream();
         archive.Entries.Single().CopyTo(decoded);
-        if (!decoded.ToArray().AsSpan().SequenceEqual(content)) throw new InvalidDataException("Round-trip content mismatch.");
+        if (!decoded.ToArray().AsSpan().SequenceEqual(content))
+        {
+            throw new InvalidDataException("Round-trip content mismatch.");
+        }
+
         archive.Test();
         if (archive.Format is ArchiveFormat.Zip or ArchiveFormat.SevenZip or ArchiveFormat.Tar)
         {
@@ -86,7 +93,11 @@ static void RunSelfTest()
             editor.WriteTo(replacement, new() { WriteOptions = test.Options });
             replacement.Position = 0;
             using var updated = Archive.Open(replacement, new() { Password = test.Password });
-            if (updated.GetEntry("renamed.txt") is null) throw new InvalidDataException("Editor output mismatch.");
+            if (updated.GetEntry("renamed.txt") is null)
+            {
+                throw new InvalidDataException("Editor output mismatch.");
+            }
+
             updated.Test();
         }
         Console.WriteLine($"Verified {archive.Info.FormatName}{(test.Password is null ? "" : " with encrypted headers")}.");
@@ -101,14 +112,20 @@ static void RunSelfTest()
         ArchiveFile.Update(path, editor => editor.Rename(editor.Entries.Single(), "renamed.txt"));
         ArchiveFile.ExtractToDirectory(path, Path.Combine(root, "output"));
         if (!File.ReadAllBytes(Path.Combine(root, "output", "renamed.txt")).AsSpan().SequenceEqual(content))
+        {
             throw new InvalidDataException("Filesystem output mismatch.");
+        }
+
         Console.WriteLine("Verified filesystem creation, update, and extraction.");
     }
     finally
     {
         string expected = Path.Combine(Path.GetTempPath(), "SevenZipSharp.Sample-");
         if (!Path.GetFullPath(root).StartsWith(expected, StringComparison.OrdinalIgnoreCase))
+        {
             throw new InvalidOperationException("Unexpected sample cleanup directory.");
+        }
+
         Directory.Delete(root, true);
     }
     Console.WriteLine("All native smoke checks passed.");

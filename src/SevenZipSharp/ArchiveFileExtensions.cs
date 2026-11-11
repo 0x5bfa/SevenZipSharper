@@ -11,9 +11,16 @@ public static class ArchiveFileExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var file = new FileInfo(Path.GetFullPath(path));
-        if (!file.Exists) throw new FileNotFoundException("The source file does not exist.", file.FullName);
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException("The source file does not exist.", file.FullName);
+        }
+
         if ((file.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory | FileAttributes.Device)) != 0)
+        {
             throw new NotSupportedException("The source must be a regular file.");
+        }
+
         options ??= new() { LastWriteTime = new DateTimeOffset(file.LastWriteTimeUtc), Attributes = file.Attributes };
         string source = file.FullName;
         builder.AddEntry(fullName, file.Length, () => new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read), options);

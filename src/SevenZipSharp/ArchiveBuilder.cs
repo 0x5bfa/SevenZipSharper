@@ -20,13 +20,19 @@ public sealed class ArchiveBuilder
 
     /// <summary>Registers a directory, including an empty directory.</summary>
     public void AddDirectory(string fullName, ArchiveEntryOptions? options = null)
-        => Add(new(WriteItem.ValidateName(fullName, true), true, 0, null, WriteItem.CaptureOptions(options)));
+    {
+        Add(new(WriteItem.ValidateName(fullName, true), true, 0, null, WriteItem.CaptureOptions(options)));
+    }
 
     private void Add(WriteItem item)
     {
         lock (gate)
         {
-            if (consumed) throw new InvalidOperationException("This builder has already been consumed.");
+            if (consumed)
+            {
+                throw new InvalidOperationException("This builder has already been consumed.");
+            }
+
             items.Add(item);
         }
     }
@@ -54,7 +60,11 @@ public sealed class ArchiveBuilder
         WriteConfiguration snapshot = options.Capture();
         lock (gate)
         {
-            if (consumed) throw new InvalidOperationException("This builder has already been consumed.");
+            if (consumed)
+            {
+                throw new InvalidOperationException("This builder has already been consumed.");
+            }
+
             var plan = items.ToArray();
             WriteOperation.Validate(destination, plan, snapshot);
             token.ThrowIfCancellationRequested();

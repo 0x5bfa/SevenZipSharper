@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices.Marshalling;
+using SevenZip.Interop.Streams;
 using SevenZipSharp.Interop;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
 
 namespace SevenZipSharp.Native.Streams;
 
@@ -13,42 +15,76 @@ internal sealed unsafe partial class NativeSourceStream(Stream source, long leng
     private long consumed;
     private bool disposed;
 
-    internal void ValidateEmpty() { if (length == 0) VerifyEnd(); }
-
-    public int Read(void* data, uint size, uint* processed)
+    internal void ValidateEmpty()
     {
-        if (processed != null) *processed = 0;
+        if (length == 0)
+        {
+            VerifyEnd();
+        }
+    }
+
+    public HRESULT Read(void* data, uint size, ref uint processed)
+    {
+        processed = 0;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
-            if (size == 0) return 0;
+            if (size == 0)
+            {
+                return HRESULT.S_OK;
+            }
+
             if (consumed == length)
             {
                 VerifyEnd();
-                return 0;
+
+                return HRESULT.S_OK;
             }
             int count = (int)Math.Min(Math.Min(size, int.MaxValue), length - consumed);
             int read = source.Read(new Span<byte>(data, count));
-            if (read == 0) throw new EndOfStreamException("An entry source ended before its declared length.");
+            if (read == 0)
+            {
+                throw new EndOfStreamException("An entry source ended before its declared length.");
+            }
+
             consumed += read;
-            if (processed != null) *processed = (uint)read;
-            if (consumed == length) VerifyEnd();
-            return 0;
+            processed = (uint)read;
+            if (consumed == length)
+            {
+                VerifyEnd();
+            }
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
     private void VerifyEnd()
     {
-        if (disposed) return;
-        if (source.ReadByte() != -1) throw new InvalidDataException("An entry source exceeds its declared length.");
+        if (disposed)
+        {
+            return;
+        }
+
+        if (source.ReadByte() != -1)
+        {
+            throw new InvalidDataException("An entry source exceeds its declared length.");
+        }
+
         Dispose();
     }
 
     public void Dispose()
     {
-        if (disposed) return;
+        if (disposed)
+        {
+            return;
+        }
+
         disposed = true;
         source.Dispose();
     }

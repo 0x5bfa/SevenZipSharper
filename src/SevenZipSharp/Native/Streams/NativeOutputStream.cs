@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices.Marshalling;
+using SevenZip.Interop.Streams;
 using SevenZipSharp.Interop;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
 
 namespace SevenZipSharp.Native.Streams;
 
@@ -11,9 +13,9 @@ internal sealed unsafe partial class NativeOutputStream(
 {
     private readonly long origin = stream.CanSeek ? stream.Position : 0;
 
-    public int Write(void* data, uint size, uint* processed)
+    public HRESULT Write(void* data, uint size, ref uint processed)
     {
-        if (processed != null) *processed = 0;
+        processed = 0;
         using var callback = context.EnterCallback();
         try
         {
@@ -21,35 +23,47 @@ internal sealed unsafe partial class NativeOutputStream(
             int count = checked((int)size);
             countBytes?.Invoke(count);
             stream.Write(new ReadOnlySpan<byte>(data, count));
-            if (processed != null) *processed = size;
+            processed = size;
             context.AddBytes(count, entry);
-            return 0;
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int Seek(long offset, uint seekOrigin, ulong* position)
+    public HRESULT Seek(long offset, uint seekOrigin, ref ulong position)
     {
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
             long actual = stream.Seek(seekOrigin == 0 ? checked(origin + offset) : offset, (SeekOrigin)seekOrigin) - origin;
-            if (position != null) *position = checked((ulong)actual);
-            return 0;
+            position = checked((ulong)actual);
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int SetSize(ulong size)
+    public HRESULT SetSize(ulong size)
     {
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
             stream.SetLength(checked(origin + (long)size));
-            return 0;
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 }

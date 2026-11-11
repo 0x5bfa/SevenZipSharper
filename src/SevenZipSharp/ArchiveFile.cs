@@ -16,7 +16,10 @@ public static partial class ArchiveFile
             options = options with { VolumeResolver = name =>
             {
                 if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\', ':']) >= 0 || name is "." or "..")
+                {
                     throw new InvalidDataException("A volume name must identify a file in the source directory.");
+                }
+
                 string volume = Path.Combine(directory, name);
                 return File.Exists(volume) ? new FileStream(volume, FileMode.Open, FileAccess.Read, FileShare.Read) : null;
             }};

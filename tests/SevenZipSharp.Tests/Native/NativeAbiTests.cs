@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using SevenZipSharp.Interop;
+using Windows.Win32.System.Com.StructuredStorage;
 
 namespace SevenZipSharp.Tests.Native;
 
@@ -7,10 +7,9 @@ namespace SevenZipSharp.Tests.Native;
 public sealed class NativeAbiTests
 {
     [Test]
-    public void VariantLayoutMatchesThePinnedWindowsAbi()
+    public void GeneratedPropVariantLayoutMatchesWindowsAbi()
     {
         TestContext.Progress.WriteLine($"Native integration process architecture: {RuntimeInformation.ProcessArchitecture}");
-        Assert.That(Marshal.SizeOf<NativeVariant>(), Is.EqualTo(IntPtr.Size == 8 ? 24 : 16));
-        Assert.That(Marshal.OffsetOf<NativeVariant>(nameof(NativeVariant.Value)).ToInt32(), Is.EqualTo(8));
+        Assert.That(Marshal.SizeOf<PROPVARIANT>(), Is.EqualTo(IntPtr.Size == 8 ? 24 : 16));
     }
 }

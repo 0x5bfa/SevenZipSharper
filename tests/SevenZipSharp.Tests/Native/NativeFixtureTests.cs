@@ -3,7 +3,10 @@ namespace SevenZipSharp.Tests.Native;
 [TestFixture]
 public sealed class NativeFixtureTests
 {
-    private static string Fixture(string name) => Path.Combine(TestContext.CurrentContext.TestDirectory, "TestData", name);
+    private static string Fixture(string name)
+    {
+        return Path.Combine(TestContext.CurrentContext.TestDirectory, "TestData", name);
+    }
 
     [TestCase("7z_LZMA2.7z", ArchiveFormat.SevenZip)]
     [TestCase("rar4.rar", ArchiveFormat.Rar)]
@@ -19,7 +22,10 @@ public sealed class NativeFixtureTests
         {
             using var output = new MemoryStream();
             entry.CopyTo(output);
-            if (entry.Length is { } length) Assert.That(output.Length, Is.EqualTo(length));
+            if (entry.Length is { } length)
+            {
+                Assert.That(output.Length, Is.EqualTo(length));
+            }
         }
         archive.Test();
     }

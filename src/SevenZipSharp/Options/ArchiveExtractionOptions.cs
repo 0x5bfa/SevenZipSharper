@@ -30,9 +30,21 @@ public sealed record ArchiveExtractionOptions
     internal ArchiveExtractionOptions Capture()
     {
         ArgumentOutOfRangeException.ThrowIfNegative(MaximumEntries);
-        if (MaximumEntryBytes is < 0) throw new ArgumentOutOfRangeException(nameof(MaximumEntryBytes));
-        if (MaximumTotalBytes is < 0) throw new ArgumentOutOfRangeException(nameof(MaximumTotalBytes));
-        if (!Enum.IsDefined(UnsupportedEntries)) throw new ArgumentOutOfRangeException(nameof(UnsupportedEntries));
+        if (MaximumEntryBytes is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaximumEntryBytes));
+        }
+
+        if (MaximumTotalBytes is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaximumTotalBytes));
+        }
+
+        if (!Enum.IsDefined(UnsupportedEntries))
+        {
+            throw new ArgumentOutOfRangeException(nameof(UnsupportedEntries));
+        }
+
         return this with { };
     }
 }

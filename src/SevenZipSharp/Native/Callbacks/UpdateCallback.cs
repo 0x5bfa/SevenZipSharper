@@ -1,8 +1,13 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
-using SevenZipSharp.Interop;
+using SevenZip.Interop.Archives;
+using SevenZip.Interop.Cryptography;
+using SevenZip.Interop.Progress;
+using SevenZip.Interop.Streams;
 using SevenZipSharp.Native.Streams;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Com.StructuredStorage;
 
 namespace SevenZipSharp.Native.Callbacks;
 
@@ -15,63 +20,90 @@ internal sealed unsafe partial class UpdateCallback(
     private readonly List<NativeSourceStream> sources = [];
     private readonly HashSet<Stream> issued = new(ReferenceEqualityComparer.Instance);
 
-    public int SetTotal(ulong total) => Check();
-    public int SetCompleted(ulong* completed) => Check();
-
-    private int Check()
+    public HRESULT SetTotal(ulong total)
     {
-        using var callback = context.EnterCallback();
-        try { context.Check(); return 0; }
-        catch (Exception error) { return context.Fail(error); }
+        return Check();
     }
 
-    public int GetUpdateItemInfo(uint index, int* newData, int* newProperties, uint* archiveIndex)
+    public HRESULT SetCompleted(in ulong completed)
+    {
+        return Check();
+    }
+
+    private HRESULT Check()
     {
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
-            var item = items[checked((int)index)];
-            *newData = item.NewData ? 1 : 0;
-            *newProperties = item.NewProperties ? 1 : 0;
-            *archiveIndex = item.ArchiveIndex;
-            return 0;
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int GetProperty(uint index, uint id, NativeVariant* value)
+    public HRESULT GetUpdateItemInfo(uint index, ref int newData, ref int newProperties, ref uint archiveIndex)
     {
-        *value = default;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
             var item = items[checked((int)index)];
-            *value = (NativePropertyId)id switch
+            newData = item.NewData ? 1 : 0;
+            newProperties = item.NewProperties ? 1 : 0;
+            archiveIndex = item.ArchiveIndex;
+
+            return HRESULT.S_OK;
+        }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
+    }
+
+    public HRESULT GetProperty(uint index, uint id, ref PROPVARIANT value)
+    {
+        value = default;
+        using var callback = context.EnterCallback();
+        try
+        {
+            context.Check();
+            var item = items[checked((int)index)];
+            value = ((NativePropertyId)id switch
             {
-                NativePropertyId.Path => NativeVariant.FromString(item.FullName.TrimEnd('/')),
-                NativePropertyId.IsDirectory => NativeVariant.FromBoolean(item.IsDirectory),
-                NativePropertyId.Size => NativeVariant.FromUInt64((ulong)item.Length),
-                NativePropertyId.Attributes when item.Options.Attributes is { } attributes => NativeVariant.FromUInt32((uint)attributes),
-                NativePropertyId.ModifiedTime when item.Options.LastWriteTime is { } time => NativeVariant.FromTimestamp(time),
+                NativePropertyId.Path => InteropHelpers.CreateString(item.FullName.TrimEnd('/')),
+                NativePropertyId.IsDirectory => InteropHelpers.CreateBoolean(item.IsDirectory),
+                NativePropertyId.Size => InteropHelpers.CreateUInt64((ulong)item.Length),
+                NativePropertyId.Attributes when item.Options.Attributes is { } attributes => InteropHelpers.CreateUInt32((uint)attributes),
+                NativePropertyId.ModifiedTime when item.Options.LastWriteTime is { } time => InteropHelpers.CreateTimestamp(time),
                 _ => default
-            };
-            return 0;
+            });
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int GetStream(uint index, nint* result)
+    public HRESULT GetStream(uint index, out ISequentialInStream inStream)
     {
-        *result = 0;
+        inStream = null!;
         using var callback = context.EnterCallback();
         Stream? source = null;
         try
         {
             context.Check();
             var item = items[checked((int)index)];
-            if (item.IsDirectory) return 0;
+            if (item.IsDirectory)
+            {
+                return HRESULT.S_OK;
+            }
+
             source = item.OpenRead?.Invoke() ?? throw new InvalidOperationException("An entry source factory returned null.");
             if (ReferenceEquals(source, destination) || ReferenceEquals(source, archiveSource))
             {
@@ -83,70 +115,112 @@ internal sealed unsafe partial class UpdateCallback(
                 source = null;
                 throw new ArgumentException("An entry factory must return a fresh stream.");
             }
-            if (!source.CanRead) throw new ArgumentException("An entry source is not readable.");
+            if (!source.CanRead)
+            {
+                throw new ArgumentException("An entry source is not readable.");
+            }
+
             if (source.CanSeek && source.Length - source.Position != item.Length)
+            {
                 throw new InvalidDataException("An entry source no longer has its declared length.");
+            }
+
             var adapter = new NativeSourceStream(source, item.Length, context);
             sources.Add(adapter);
             source = null;
             adapter.ValidateEmpty();
-            *result = (nint)ComInterfaceMarshaller<ISequentialInStream>.ConvertToUnmanaged(adapter);
-            return 0;
+            inStream = adapter;
+
+            return HRESULT.S_OK;
         }
         catch (Exception error)
         {
-            context.Fail(error);
+            HRESULT result = context.Fail(error);
             try { source?.Dispose(); } catch (Exception cleanup) { context.Fail(cleanup); }
-            return NativeMethods.Fail;
+
+            return result;
         }
     }
 
-    public int SetOperationResult(int result)
+    public HRESULT SetOperationResult(int result)
     {
         using var callback = context.EnterCallback();
         try
         {
             context.Result(result);
-            if (result == 0) context.EntryCompleted(null);
+            if (result == 0)
+            {
+                context.EntryCompleted(null);
+            }
+
             context.Check();
-            return context.HasFailure ? NativeMethods.Fail : 0;
+
+            return context.HasFailure ? HRESULT.E_FAIL : HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int ReportExtractResult(uint indexType, uint index, int result)
+    public HRESULT ReportExtractResult(uint indexType, uint index, int result)
     {
         using var callback = context.EnterCallback();
-        try { context.Result(result); context.Check(); return context.HasFailure ? NativeMethods.Fail : 0; }
-        catch (Exception error) { return context.Fail(error); }
+        try
+        {
+            context.Result(result);
+            context.Check();
+
+            return context.HasFailure ? HRESULT.E_FAIL : HRESULT.S_OK;
+        }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int CryptoGetTextPassword2(int* defined, nint* password)
+    public HRESULT CryptoGetTextPassword2(ref int defined, BSTR* password)
     {
-        *defined = 0; *password = 0;
+        defined = 0;
+        *password = default;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
-            *defined = newPassword is null ? 0 : 1;
-            if (newPassword is not null) *password = Marshal.StringToBSTR(newPassword);
-            return 0;
+            defined = newPassword is null ? 0 : 1;
+            if (newPassword is not null)
+            {
+                *password = (BSTR)Marshal.StringToBSTR(newPassword);
+            }
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
-    public int CryptoGetTextPassword(nint* password)
+    public HRESULT CryptoGetTextPassword(BSTR* password)
     {
-        *password = 0;
+        *password = default;
         using var callback = context.EnterCallback();
         try
         {
             context.Check();
-            if (sourcePassword is null) throw new ArchiveException(ArchiveErrorCode.PasswordRequired, "Repacking this archive requires its source password.");
-            *password = Marshal.StringToBSTR(sourcePassword);
-            return 0;
+            if (sourcePassword is null)
+            {
+                throw new ArchiveException(ArchiveErrorCode.PasswordRequired, "Repacking this archive requires its source password.");
+            }
+
+            *password = (BSTR)Marshal.StringToBSTR(sourcePassword);
+
+            return HRESULT.S_OK;
         }
-        catch (Exception error) { return context.Fail(error); }
+        catch (Exception error)
+        {
+            return context.Fail(error);
+        }
     }
 
     public void Dispose()

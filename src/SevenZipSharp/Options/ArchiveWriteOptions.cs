@@ -58,21 +58,44 @@ public sealed record SevenZipWriteOptions : ArchiveWriteOptions
     public int? ThreadCount { get; init; }
 
     /// <summary>Returns a description without exposing the password.</summary>
-    public override string ToString() => $"{nameof(SevenZipWriteOptions)} {{ CompressionLevel = {CompressionLevel}, Method = {Method}, Solid = {Solid}, EncryptHeaders = {EncryptHeaders}, Password = <redacted> }}";
+    public override string ToString()
+    {
+        return $"{nameof(SevenZipWriteOptions)} {{ CompressionLevel = {CompressionLevel}, Method = {Method}, Solid = {Solid}, EncryptHeaders = {EncryptHeaders}, Password = <redacted> }}";
+    }
 
     internal override WriteConfiguration Capture()
     {
-        if (!Enum.IsDefined(Method)) throw new ArgumentOutOfRangeException(nameof(Method));
-        if (EncryptHeaders && Password is null) throw new ArgumentException("Header encryption requires a password.");
-        if (ThreadCount is <= 0) throw new ArgumentOutOfRangeException(nameof(ThreadCount));
+        if (!Enum.IsDefined(Method))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Method));
+        }
+
+        if (EncryptHeaders && Password is null)
+        {
+            throw new ArgumentException("Header encryption requires a password.");
+        }
+
+        if (ThreadCount is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ThreadCount));
+        }
+
         string method = Method switch
         {
             SevenZipCompressionMethod.Lzma2 => "LZMA2", SevenZipCompressionMethod.Lzma => "LZMA",
             SevenZipCompressionMethod.Ppmd => "PPMd", _ => "Copy"
         };
-        if (CompressionLevel == CompressionLevel.NoCompression) method = "Copy";
+        if (CompressionLevel == CompressionLevel.NoCompression)
+        {
+            method = "Copy";
+        }
+
         var properties = new List<(string, object)> { ("x", WriteConfiguration.Level(CompressionLevel)), ("0", method), ("s", Solid), ("he", EncryptHeaders) };
-        if (ThreadCount is { } threads) properties.Add(("mt", checked((uint)threads)));
+        if (ThreadCount is { } threads)
+        {
+            properties.Add(("mt", checked((uint)threads)));
+        }
+
         return new(ArchiveFormat.SevenZip, Password, properties);
     }
 }
@@ -90,12 +113,23 @@ public sealed record ZipWriteOptions : ArchiveWriteOptions
     public ZipEncryptionMethod EncryptionMethod { get; init; } = ZipEncryptionMethod.Aes256;
 
     /// <summary>Returns a description without exposing the password.</summary>
-    public override string ToString() => $"{nameof(ZipWriteOptions)} {{ CompressionLevel = {CompressionLevel}, Method = {Method}, EncryptionMethod = {EncryptionMethod}, Password = <redacted> }}";
+    public override string ToString()
+    {
+        return $"{nameof(ZipWriteOptions)} {{ CompressionLevel = {CompressionLevel}, Method = {Method}, EncryptionMethod = {EncryptionMethod}, Password = <redacted> }}";
+    }
 
     internal override WriteConfiguration Capture()
     {
-        if (!Enum.IsDefined(Method)) throw new ArgumentOutOfRangeException(nameof(Method));
-        if (!Enum.IsDefined(EncryptionMethod)) throw new ArgumentOutOfRangeException(nameof(EncryptionMethod));
+        if (!Enum.IsDefined(Method))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Method));
+        }
+
+        if (!Enum.IsDefined(EncryptionMethod))
+        {
+            throw new ArgumentOutOfRangeException(nameof(EncryptionMethod));
+        }
+
         return new(ArchiveFormat.Zip, Password,
         [
             ("x", WriteConfiguration.Level(CompressionLevel)),
@@ -108,7 +142,10 @@ public sealed record ZipWriteOptions : ArchiveWriteOptions
 /// <summary>Controls writing an uncompressed TAR archive.</summary>
 public sealed record TarWriteOptions : ArchiveWriteOptions
 {
-    internal override WriteConfiguration Capture() => new(ArchiveFormat.Tar, null, []);
+    internal override WriteConfiguration Capture()
+    {
+        return new(ArchiveFormat.Tar, null, []);
+    }
 }
 
 /// <summary>Controls writing a single GZip payload.</summary>
@@ -116,7 +153,10 @@ public sealed record GZipWriteOptions : ArchiveWriteOptions
 {
     /// <summary>Gets the compression preset.</summary>
     public CompressionLevel CompressionLevel { get; init; } = CompressionLevel.Optimal;
-    internal override WriteConfiguration Capture() => new(ArchiveFormat.GZip, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    internal override WriteConfiguration Capture()
+    {
+        return new(ArchiveFormat.GZip, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    }
 }
 
 /// <summary>Controls writing a single XZ payload.</summary>
@@ -124,7 +164,10 @@ public sealed record XzWriteOptions : ArchiveWriteOptions
 {
     /// <summary>Gets the compression preset.</summary>
     public CompressionLevel CompressionLevel { get; init; } = CompressionLevel.Optimal;
-    internal override WriteConfiguration Capture() => new(ArchiveFormat.Xz, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    internal override WriteConfiguration Capture()
+    {
+        return new(ArchiveFormat.Xz, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    }
 }
 
 /// <summary>Controls writing a single BZip2 payload.</summary>
@@ -132,5 +175,8 @@ public sealed record BZip2WriteOptions : ArchiveWriteOptions
 {
     /// <summary>Gets the compression preset.</summary>
     public CompressionLevel CompressionLevel { get; init; } = CompressionLevel.Optimal;
-    internal override WriteConfiguration Capture() => new(ArchiveFormat.BZip2, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    internal override WriteConfiguration Capture()
+    {
+        return new(ArchiveFormat.BZip2, null, [("x", WriteConfiguration.Level(CompressionLevel))]);
+    }
 }

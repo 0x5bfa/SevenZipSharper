@@ -20,7 +20,11 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
         IReadOnlyList<ArchiveEntry> entries, string destination, ArchiveExtractionOptions options, CancellationToken token)
     {
         string root = Path.GetFullPath(destination);
-        if (entries.Count > options.MaximumEntries) throw new InvalidDataException("The extraction entry limit was exceeded.");
+        if (entries.Count > options.MaximumEntries)
+        {
+            throw new InvalidDataException("The extraction entry limit was exceeded.");
+        }
+
         var targets = new Dictionary<int, (ArchiveEntry Entry, string Path)>();
         var unique = new Dictionary<string, ArchiveEntryType>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
@@ -28,19 +32,31 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
             token.ThrowIfCancellationRequested();
             if (entry.EntryType is not (ArchiveEntryType.File or ArchiveEntryType.Directory))
             {
-                if (options.UnsupportedEntries == UnsupportedEntryPolicy.Skip) continue;
+                if (options.UnsupportedEntries == UnsupportedEntryPolicy.Skip)
+                {
+                    continue;
+                }
+
                 throw new NotSupportedException("Links and special entries cannot be restored by this extraction policy.");
             }
             string path = ExtractionPathPolicy.Resolve(root, entry.FullName);
-            if (!unique.TryAdd(path, entry.EntryType)) throw new InvalidDataException("Multiple entries map to the same filesystem path.");
+            if (!unique.TryAdd(path, entry.EntryType))
+            {
+                throw new InvalidDataException("Multiple entries map to the same filesystem path.");
+            }
+
             targets.Add(entry.Index, (entry, path));
         }
         foreach (string path in unique.Keys)
         {
             token.ThrowIfCancellationRequested();
             for (string? parent = Path.GetDirectoryName(path); parent is not null && parent.Length >= root.Length; parent = Path.GetDirectoryName(parent))
+            {
                 if (unique.TryGetValue(parent, out var type) && type != ArchiveEntryType.Directory)
+                {
                     throw new InvalidDataException("An entry is both a file and a parent directory.");
+                }
+            }
         }
         var sink = new DirectoryExtractionSink(targets, options);
         sink.Prepare(root, token);
@@ -49,8 +65,16 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
 
     internal static DirectoryExtractionSink CreateSingle(ArchiveEntry entry, string path, ArchiveExtractionOptions options, CancellationToken token)
     {
-        if (entry.EntryType != ArchiveEntryType.File) throw new NotSupportedException("Only regular files can be extracted to a file.");
-        if (options.MaximumEntries < 1) throw new InvalidDataException("The extraction entry limit was exceeded.");
+        if (entry.EntryType != ArchiveEntryType.File)
+        {
+            throw new NotSupportedException("Only regular files can be extracted to a file.");
+        }
+
+        if (options.MaximumEntries < 1)
+        {
+            throw new InvalidDataException("The extraction entry limit was exceeded.");
+        }
+
         string target = Path.GetFullPath(path);
         ExtractionPathPolicy.ValidateSegment(Path.GetFileName(target));
         var sink = new DirectoryExtractionSink(new() { [entry.Index] = (entry, target) }, options);
@@ -67,10 +91,20 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
             ExtractionPathPolicy.EnsureNoReparsePoints(target.Path);
             if (target.Entry.EntryType == ArchiveEntryType.File)
             {
-                if (Directory.Exists(target.Path)) throw new IOException("A file destination is an existing directory.");
-                if (!options.Overwrite && File.Exists(target.Path)) throw new IOException("A file destination already exists.");
+                if (Directory.Exists(target.Path))
+                {
+                    throw new IOException("A file destination is an existing directory.");
+                }
+
+                if (!options.Overwrite && File.Exists(target.Path))
+                {
+                    throw new IOException("A file destination already exists.");
+                }
             }
-            else if (File.Exists(target.Path)) throw new IOException("A directory destination is an existing file.");
+            else if (File.Exists(target.Path))
+            {
+                throw new IOException("A directory destination is an existing file.");
+            }
         }
         Directory.CreateDirectory(root);
         foreach (var target in targets.Values.Where(target => target.Entry.EntryType == ArchiveEntryType.Directory)
@@ -97,7 +131,10 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
             long sum = checked(totalBytes + count);
             if (options.MaximumEntryBytes is { } entryLimit && entryBytes > entryLimit ||
                 options.MaximumTotalBytes is { } totalLimit && sum > totalLimit)
+            {
                 throw new InvalidDataException("The extraction actual-byte limit was exceeded.");
+            }
+
             totalBytes = sum;
         });
         pending.Add(entry.Index, new(target.Path, temporary, limited));
@@ -107,15 +144,29 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
     public void Complete(ArchiveEntry entry, bool success)
     {
         if (entry.EntryType == ArchiveEntryType.Directory) { completed.Add(entry.Index); return; }
-        if (!pending.Remove(entry.Index, out var file)) return;
+        if (!pending.Remove(entry.Index, out var file))
+        {
+            return;
+        }
+
         try
         {
             file.Stream.Dispose();
-            if (!success) return;
+            if (!success)
+            {
+                return;
+            }
+
             if (entry.Length is { } length && file.Stream.Bytes != length)
+            {
                 throw new InvalidDataException("The extracted file does not match its declared length.");
+            }
+
             if (options.PreserveLastWriteTime && entry.LastWriteTime is { } time)
+            {
                 File.SetLastWriteTimeUtc(file.Temporary, time.UtcDateTime);
+            }
+
             if (options.PreserveAttributes && entry.NativeAttributes is { } attributes)
             {
                 const FileAttributes allowed = FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System | FileAttributes.Archive | FileAttributes.NotContentIndexed;
@@ -138,12 +189,23 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
     public void Finish()
     {
         if (pending.Count != 0 || targets.Values.Any(target => target.Entry.EntryType == ArchiveEntryType.File && !completed.Contains(target.Entry.Index)))
+        {
             throw new InvalidDataException("The native engine did not complete every selected file.");
-        if (!options.PreserveLastWriteTime) return;
+        }
+
+        if (!options.PreserveLastWriteTime)
+        {
+            return;
+        }
+
         foreach (var target in targets.Values.Where(target => target.Entry.EntryType == ArchiveEntryType.Directory)
                      .OrderByDescending(target => target.Path.Length))
+        {
             if (target.Entry.LastWriteTime is { } time)
+            {
                 Directory.SetLastWriteTimeUtc(target.Path, time.UtcDateTime);
+            }
+        }
     }
 
     public void Dispose()
@@ -155,7 +217,10 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
             try { File.Delete(file.Temporary); } catch (Exception error) { first ??= error; }
         }
         pending.Clear();
-        if (first is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(first).Throw();
+        if (first is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(first).Throw();
+        }
     }
 
     private sealed record PendingFile(string Target, string Temporary, LimitedOutput Stream);
@@ -169,7 +234,11 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
         public override bool CanWrite => !disposed;
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Write(buffer.AsSpan(offset, count));
+        }
+
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
@@ -177,10 +246,26 @@ internal sealed class DirectoryExtractionSink : IExtractionSink, IDisposable
             destination.Write(buffer);
             Bytes += buffer.Length;
         }
-        public override void Flush() => destination.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Flush()
+        {
+            destination.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (!disposed && disposing) { disposed = true; destination.Dispose(); }

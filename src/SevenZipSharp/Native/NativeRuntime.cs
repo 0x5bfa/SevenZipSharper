@@ -1,6 +1,10 @@
 using System.Runtime.InteropServices;
+using NativeInArchive = SevenZip.Interop.Archives.IInArchive;
+using SevenZip.Interop.Archives;
 using SevenZip.Interop.Runtime;
-using SevenZipSharp.Interop;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Com.StructuredStorage;
+using Windows.Win32.System.Variant;
 
 namespace SevenZipSharp.Native;
 
@@ -15,7 +19,11 @@ internal sealed unsafe class NativeRuntime
 
     private NativeRuntime()
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("The bundled 7-Zip engine requires Windows.");
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("The bundled 7-Zip engine requires Windows.");
+        }
+
         try
         {
             _ = SevenZipLibrary.Instance;
@@ -30,52 +38,67 @@ internal sealed unsafe class NativeRuntime
         }
     }
 
-    internal SevenZipObject Create(NativeFormat format, Guid interfaceId)
-    {
-        try { return SevenZipLibrary.Instance.CreateObject(format.ClassId, interfaceId); }
-        catch (COMException error) { NativeMethods.Check(error.HResult); throw; }
-    }
+    internal SevenZipObject Create(NativeFormat format, Guid interfaceId) =>
+        SevenZipLibrary.Instance.CreateObject(format.ClassId, interfaceId);
 
     internal SevenZipObject? TryCreateReader(NativeFormat format)
     {
-        try { return SevenZipLibrary.Instance.CreateObject(format.ClassId, NativeMethods.InArchiveId); }
-        catch (COMException error) when (error.HResult == unchecked((int)0x80040111)) { return null; }
-        catch (COMException error) { NativeMethods.Check(error.HResult); throw; }
+        try { return SevenZipLibrary.Instance.CreateObject(format.ClassId, typeof(NativeInArchive).GUID); }
+        catch (COMException error) when (error.HResult == HRESULT.CLASS_E_CLASSNOTAVAILABLE.Value) { return null; }
     }
 
-    internal NativeFormat Writable(ArchiveFormat format) => Formats.FirstOrDefault(f => f.Format == format && f.CanWrite)
+    internal NativeFormat Writable(ArchiveFormat format)
+    {
+        return Formats.FirstOrDefault(f => f.Format == format && f.CanWrite)
         ?? throw new NotSupportedException($"The native engine cannot write {format}.");
+    }
 
     private IReadOnlyList<NativeFormat> ReadFormats()
     {
-        var countFunction = (delegate* unmanaged[Stdcall]<uint*, int>)NativeLibrary.GetExport(module, "GetNumberOfFormats");
-        var propertyFunction = (delegate* unmanaged[Stdcall]<uint, uint, NativeVariant*, int>)NativeLibrary.GetExport(module, "GetHandlerProperty2");
+        // Use the WinMD function type for the count export.
+        var countFunction = (Func_GetNumberOfFormats)(delegate* unmanaged[Stdcall]<uint*, HRESULT>)NativeLibrary.GetExport(module, "GetNumberOfFormats");
+        // Keep the property export typed with the projected PROPVARIANT layout.
+        delegate* unmanaged[Stdcall]<uint, uint, PROPVARIANT*, HRESULT> propertyFunction =
+            (delegate* unmanaged[Stdcall]<uint, uint, PROPVARIANT*, HRESULT>)NativeLibrary.GetExport(module, "GetHandlerProperty2");
         uint count = 0;
-        NativeMethods.Check(countFunction(&count));
-        if (count > 10_000) throw new InvalidDataException("The native format catalog is too large.");
+        countFunction.Value(&count).ThrowOnFailure();
+        if (count > 10_000)
+        {
+            throw new InvalidDataException("The native format catalog is too large.");
+        }
+
         var formats = new List<NativeFormat>();
         for (uint index = 0; index < count; index++)
         {
-            NativeVariant value = default;
+            PROPVARIANT value = default;
             try
             {
-                NativeMethods.Check(propertyFunction(index, 0, &value));
-                string name = value.String ?? "";
-                value.Clear();
-                NativeMethods.Check(propertyFunction(index, 1, &value));
-                if (value.Type != 8 || value.Value.Pointer == 0 || Marshal.ReadInt32(value.Value.Pointer, -4) != 16)
+                propertyFunction(index, 0, &value).ThrowOnFailure();
+                string name = InteropHelpers.GetString(ref value) ?? "";
+                InteropHelpers.Clear(ref value);
+                propertyFunction(index, 1, &value).ThrowOnFailure();
+                if (value.vt != VARENUM.VT_BSTR)
+                {
                     continue;
-                var id = new Guid(new ReadOnlySpan<byte>((void*)value.Value.Pointer, 16));
-                value.Clear();
-                NativeMethods.Check(propertyFunction(index, 4, &value));
-                bool canWrite = value.Boolean ?? false;
-                value.Clear();
-                NativeMethods.Check(propertyFunction(index, 6, &value));
-                byte[] signature = value.Type == 8 && value.Value.Pointer != 0
-                    ? new ReadOnlySpan<byte>((void*)value.Value.Pointer, Marshal.ReadInt32(value.Value.Pointer, -4)).ToArray() : [];
-                value.Clear();
-                NativeMethods.Check(propertyFunction(index, 8, &value));
-                long offset = value.Length ?? 0;
+                }
+
+                ReadOnlySpan<byte> classId = MemoryMarshal.AsBytes((ReadOnlySpan<char>)value.bstrVal);
+                if (classId.Length != 16)
+                {
+                    continue;
+                }
+
+                var id = new Guid(classId);
+                InteropHelpers.Clear(ref value);
+                propertyFunction(index, 4, &value).ThrowOnFailure();
+                bool canWrite = InteropHelpers.GetBoolean(ref value) ?? false;
+                InteropHelpers.Clear(ref value);
+                propertyFunction(index, 6, &value).ThrowOnFailure();
+                byte[] signature = value.vt == VARENUM.VT_BSTR && value.bstrVal.Value != null
+                    ? MemoryMarshal.AsBytes((ReadOnlySpan<char>)value.bstrVal).ToArray() : [];
+                InteropHelpers.Clear(ref value);
+                propertyFunction(index, 8, &value).ThrowOnFailure();
+                long offset = InteropHelpers.GetLength(ref value) ?? 0;
                 ArchiveFormat format = name.ToLowerInvariant() switch
                 {
                     "7z" => ArchiveFormat.SevenZip, "zip" => ArchiveFormat.Zip, "tar" => ArchiveFormat.Tar,
@@ -85,7 +108,7 @@ internal sealed unsafe class NativeRuntime
                 };
                 formats.Add(new(format, name, id, canWrite, signature, offset));
             }
-            finally { value.Clear(); }
+            finally { InteropHelpers.Clear(ref value); }
         }
         return formats.AsReadOnly();
     }

@@ -3,6 +3,7 @@ using SevenZipSharp.Native;
 using SevenZipSharp.Native.Callbacks;
 using SevenZipSharp.Native.Properties;
 using SevenZipSharp.Operations;
+using Windows.Win32.Foundation;
 
 namespace SevenZipSharp;
 
@@ -43,7 +44,11 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (!source.CanRead || !source.CanSeek) throw new ArgumentException("An archive source must be readable and seekable.", nameof(source));
+        if (!source.CanRead || !source.CanSeek)
+        {
+            throw new ArgumentException("An archive source must be readable and seekable.", nameof(source));
+        }
+
         options = options is null ? new() : options with { };
         options.Validate();
         cancellationToken.ThrowIfCancellationRequested();
@@ -53,7 +58,7 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         {
             session.Attach(context);
             var archive = new Archive(session, source, leaveOpen, options, context);
-            context.Complete(0);
+            context.Complete(HRESULT.S_OK);
             return archive;
         }
         catch { session.Dispose(); throw; }
@@ -103,7 +108,10 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         var lease = Enter(cancellationToken);
         return Task.Run(() =>
         {
-            using (lease) RunExtraction(lease, selection, new StreamExtractionSink(openDestination, true), false, progress);
+            using (lease)
+            {
+                RunExtraction(lease, selection, new StreamExtractionSink(openDestination, true), false, progress);
+            }
         });
     }
 
@@ -111,21 +119,31 @@ public sealed class Archive : IDisposable, IAsyncDisposable
     public void Test(CancellationToken cancellationToken = default)
     {
         using var lease = Enter(cancellationToken);
-        RunExtraction(lease, Entries.ToArray(), new StreamExtractionSink(_ => null, false), true, null);
+        RunExtraction(lease, [.. Entries], new StreamExtractionSink(_ => null, false), true, null);
     }
 
     /// <summary>Verifies integrity on a worker.</summary>
     public Task TestAsync(CancellationToken cancellationToken = default)
     {
         var lease = Enter(cancellationToken);
-        return Task.Run(() => { using (lease) RunExtraction(lease, Entries.ToArray(), new StreamExtractionSink(_ => null, false), true, null); });
+        return Task.Run(() =>
+        {
+            using (lease)
+            {
+                RunExtraction(lease, [.. Entries], new StreamExtractionSink(_ => null, false), true, null);
+            }
+        }, cancellationToken);
     }
 
     /// <summary>Creates an edit plan borrowing this archive until replacement writing completes.</summary>
     public ArchiveEditor CreateEditor()
     {
         using var lease = Enter(CancellationToken.None);
-        if (!Capabilities.CanUpdate) throw new NotSupportedException("The archive handler does not support editing.");
+        if (!Capabilities.CanUpdate)
+        {
+            throw new NotSupportedException("The archive handler does not support editing.");
+        }
+
         return new(this);
     }
 
@@ -140,16 +158,31 @@ public sealed class Archive : IDisposable, IAsyncDisposable
     {
         ValidateCopy(entry, destination);
         var lease = Enter(token);
-        return Task.Run(() => { using (lease) RunExtraction(lease, [entry], new StreamExtractionSink(_ => destination, false), false, progress); });
+        return Task.Run(() => { using (lease) { RunExtraction(lease, [entry], new StreamExtractionSink(_ => destination, false), false, progress); } });
     }
 
     private void ValidateCopy(ArchiveEntry entry, Stream destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (!destination.CanWrite) throw new ArgumentException("The destination must be writable.", nameof(destination));
-        if (ReferenceEquals(source, destination)) throw new ArgumentException("Source and destination must not alias.", nameof(destination));
-        if (!ReferenceEquals(entry.Owner, this)) throw new ArgumentException("The entry belongs to another archive.", nameof(entry));
-        if (entry.EntryType != ArchiveEntryType.File) throw new NotSupportedException("Only regular files have copyable content.");
+        if (!destination.CanWrite)
+        {
+            throw new ArgumentException("The destination must be writable.", nameof(destination));
+        }
+
+        if (ReferenceEquals(source, destination))
+        {
+            throw new ArgumentException("Source and destination must not alias.", nameof(destination));
+        }
+
+        if (!ReferenceEquals(entry.Owner, this))
+        {
+            throw new ArgumentException("The entry belongs to another archive.", nameof(entry));
+        }
+
+        if (entry.EntryType != ArchiveEntryType.File)
+        {
+            throw new NotSupportedException("Only regular files have copyable content.");
+        }
     }
 
     internal ArchiveEntry[] Select(IEnumerable<ArchiveEntry> entries)
@@ -157,12 +190,21 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(entries);
         var selection = entries.ToArray();
         if (selection.Any(entry => entry is null || !ReferenceEquals(entry.Owner, this)))
+        {
             throw new ArgumentException("Every selected entry must belong to this archive.", nameof(entries));
+        }
+
         if (selection.Any(entry => entry.EntryType is not (ArchiveEntryType.File or ArchiveEntryType.Directory)))
+        {
             throw new NotSupportedException("Links and special entries require an explicit extraction policy.");
+        }
+
         if (selection.Select(entry => entry.Index).Distinct().Count() != selection.Length)
+        {
             throw new ArgumentException("An entry must not be selected more than once.", nameof(entries));
-        return selection.OrderBy(entry => entry.Index).ToArray();
+        }
+
+        return [.. selection.OrderBy(entry => entry.Index)];
     }
 
     internal void RunExtraction(OperationLease lease, ArchiveEntry[] selection, IExtractionSink sink, bool test,
@@ -170,7 +212,10 @@ public sealed class Archive : IDisposable, IAsyncDisposable
     {
         long? total = 0;
         foreach (var entry in selection)
+        {
             total = total is { } sum && entry.Length is { } length && length <= long.MaxValue - sum ? sum + length : null;
+        }
+
         var context = new OperationContext(lease.Token, test ? ArchiveOperationPhase.Testing : ArchiveOperationPhase.Extracting,
             progress, this, test ? null : total);
         bool started = false;
@@ -179,9 +224,9 @@ public sealed class Archive : IDisposable, IAsyncDisposable
             context.Check();
             if (selection.Length == 0) { sink.Finish(); return; }
             var indexes = selection.Select(entry => (uint)entry.Index).ToArray();
-            using var callback = new ExtractCallback(Entries, indexes.Select(i => (int)i).ToHashSet(), sink, context, password, test);
+            using var callback = new ExtractCallback(Entries, [.. indexes.Select(i => (int)i)], sink, context, password, test);
             started = true;
-            int result = session.Extract(indexes, test, callback, context);
+            HRESULT result = session.Extract(indexes, test, callback, context);
             context.Complete(result);
             sink.Finish();
             context.Report(null, true);
@@ -189,9 +234,16 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         catch (Exception error)
         {
             context.Fail(error);
-            if (started) faulted = true;
+            if (started)
+            {
+                faulted = true;
+            }
+
             if (error is OperationCanceledException && lease.CallerToken.IsCancellationRequested)
+            {
                 throw new OperationCanceledException("The archive operation was canceled.", error, lease.CallerToken);
+            }
+
             throw;
         }
         finally
@@ -209,8 +261,16 @@ public sealed class Archive : IDisposable, IAsyncDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed || closing, this);
-            if (faulted) throw new InvalidOperationException("The native session failed; open a new archive before continuing.");
-            if (active is not null) throw new InvalidOperationException("Another operation is already using this archive.");
+            if (faulted)
+            {
+                throw new InvalidOperationException("The native session failed; open a new archive before continuing.");
+            }
+
+            if (active is not null)
+            {
+                throw new InvalidOperationException("Another operation is already using this archive.");
+            }
+
             token.ThrowIfCancellationRequested();
             return active = new(this, token);
         }
@@ -231,12 +291,16 @@ public sealed class Archive : IDisposable, IAsyncDisposable
             cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
             Token = cancellation.Token;
         }
-        internal void Cancel() { lock (owner.gate) { if (!released) cancellation.Cancel(); } }
+        internal void Cancel() { lock (owner.gate) { if (!released) { cancellation.Cancel(); } } }
         public void Dispose()
         {
             lock (owner.gate)
             {
-                if (released) return;
+                if (released)
+                {
+                    return;
+                }
+
                 released = true;
                 owner.active = null;
                 cancellation.Dispose();
@@ -250,22 +314,41 @@ public sealed class Archive : IDisposable, IAsyncDisposable
     {
         lock (gate)
         {
-            if (disposed) return;
-            if (active is not null) throw new InvalidOperationException("Cancel and await the active operation before disposing synchronously.");
+            if (disposed)
+            {
+                return;
+            }
+
+            if (active is not null)
+            {
+                throw new InvalidOperationException("Cancel and await the active operation before disposing synchronously.");
+            }
+
             disposed = closing = true;
         }
-        try { session.Dispose(); } finally { if (!leaveOpen) source.Dispose(); }
+        try { session.Dispose(); } finally { if (!leaveOpen)
+            {
+                source.Dispose();
+            }
+        }
     }
 
     /// <summary>Cancels and awaits active work before releasing the session.</summary>
     public ValueTask DisposeAsync()
     {
         if (ReferenceEquals(OperationContext.CallbackOwner, this))
+        {
             throw new InvalidOperationException("An archive cannot be disposed from its own native callback.");
+        }
+
         OperationLease? operation;
         lock (gate)
         {
-            if (disposed) return ValueTask.CompletedTask;
+            if (disposed)
+            {
+                return ValueTask.CompletedTask;
+            }
+
             closing = true;
             operation = active;
         }
@@ -275,12 +358,19 @@ public sealed class Archive : IDisposable, IAsyncDisposable
     private async ValueTask DisposeAfterAsync(OperationLease? operation)
     {
         operation?.Cancel();
-        if (operation is not null) await operation.Completion.Task.ConfigureAwait(false);
+        if (operation is not null)
+        {
+            await operation.Completion.Task.ConfigureAwait(false);
+        }
+
         Dispose();
     }
 
     internal NativeArchiveSession Session => session;
     internal Stream Source => source;
     internal string? Password => password;
-    internal void MarkFaulted() => faulted = true;
+    internal void MarkFaulted()
+    {
+        faulted = true;
+    }
 }
