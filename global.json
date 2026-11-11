@@ -3,5 +3,8 @@
     "version": "10.0.400",
     "rollForward": "latestFeature",
     "allowPrerelease": false
+  },
+  "msbuild-sdks": {
+    "Microsoft.Windows.WinmdGenerator": "0.71.37-preview"
   }
 }

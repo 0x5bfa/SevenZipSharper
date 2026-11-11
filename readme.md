@@ -1,4 +1,4 @@
-<h1 align="center">7zSharp</h1>
+<h1 align="center">SevenZipSharper</h1>
 <p align="center">archive library built around the 7-Zip engine, with a stream-based API and separate filesystem conveniences. Windows is currently required.</p>
 
 ## Usage
@@ -12,13 +12,13 @@
 | `ArchiveFile` | Opening files, directory creation/extraction, replacement publication |
 | `ArchiveFileExtensions` | Adding source files and extracting an existing entry/session |
 
-The namespace, assembly, and project name are `SevenZipSharp`. Native ABI
+The namespace, assembly, and project name are `SevenZipSharper`. Native ABI
 interfaces, HRESULTs, callbacks, and engine objects remain internal.
 
 ### Read
 
 ```csharp
-using SevenZipSharp;
+using SevenZipSharper;
 
 await using var archive = await ArchiveFile.OpenReadAsync("input.7z");
 foreach (var entry in archive.Entries)

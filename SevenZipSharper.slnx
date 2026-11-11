@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/SevenZipSharper.Sample/SevenZipSharper.Sample.csproj" />
+    <Project Path="interop/samples/SevenZipSharper.MetadataSample/SevenZipSharper.MetadataSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/SevenZipSharper/SevenZipSharper.csproj" />
+  </Folder>
+  <Folder Name="/interop/">
+    <Project Path="interop/src/SevenZipSharper.Interop/SevenZipSharper.Interop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SevenZipSharper.Tests/SevenZipSharper.Tests.csproj" />
+  </Folder>
+</Solution>

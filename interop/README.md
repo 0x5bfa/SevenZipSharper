@@ -1,0 +1,1 @@
+# SevenZipSharper metadata tooling

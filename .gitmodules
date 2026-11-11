@@ -1,0 +1,3 @@
+[submodule "interop/external/7zip"]
+	path = interop/external/7zip
+	url = https://github.com/ip7z/7zip.git

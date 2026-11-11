@@ -7,7 +7,7 @@ an explicit disposition; breaking compatibility does not justify losing them
 accidentally.
 
 Implementation began after the repository reset. The implemented namespace is
-`SevenZipSharp`; names and signatures below describe the original proposal.
+`SevenZipSharper`; names and signatures below describe the original proposal.
 See [implementation-status.md](implementation-status.md) and the root README
 for the current implementation, verified behavior, and deferred features.
 
@@ -20,7 +20,7 @@ Use a .NET object model with four distinct responsibilities:
 3. `ArchiveEditor` describes changes and writes a replacement archive.
 4. `ArchiveFile` and `ArchiveFileExtensions` implement filesystem conveniences.
 
-Use the `SevenZip` namespace and keep the package named `SevenZipSharp`.
+Use the `SevenZip` namespace and keep the package named `SevenZipSharper`.
 `ArchiveFormat.SevenZip` denotes the 7z container; the `SevenZip` namespace denotes
 the engine. An `Archive` can therefore represent ZIP, RAR, TAR, or other supported
 formats without implying that every input is a 7z file.
@@ -51,10 +51,10 @@ entry streams or in-place editing universal guarantees.
 | `SevenZip/LZMA/LzmaEncodeStream.cs`, `LzmaDecodeStream.cs` | The stream classes encode/decode chunks with repeated properties and sizes. | Treat the existing representation separately until interoperability with standard LZMA framing is established. |
 
 The project currently targets `net10.0`, declares `IsAotCompatible`, and references
-`SevenZip.Interop` 26.5.0. That package supplies Windows x86/x64/ARM64 native assets,
+`SevenZipSharper.Interop` 26.5.0. That package supplies Windows x86/x64/ARM64 native assets,
 WinMD, and a loader. Its installed README and XML documentation do not constitute
 a full managed archive API or callback projection. The local source in
-`../7z-metadata/src/SevenZip.Interop/SevenZipLibrary.cs` confirms the loader's
+`../interop/src/SevenZipSharper.Interop/SevenZipLibrary.cs` confirms the loader's
 process-wide default instance. An AOT compatibility property is not evidence of
 a successful NativeAOT publish or execution.
 
@@ -580,7 +580,7 @@ separate NuGet packages only where there is an actual deployment or dependency
 benefit.
 
 ```text
-SevenZipSharp
+SevenZipSharper
   Public/
     Archive, ArchiveEntry, ArchiveBuilder, ArchiveEditor
     Options, metadata, progress, managed errors
@@ -599,7 +599,7 @@ SevenZipSharp
   Advanced/
     Expert properties and optional runtime configuration
 
-SevenZip.Interop (existing dependency)
+SevenZipSharper.Interop (existing dependency)
   Native runtime assets, pinned metadata, loader
 ```
 
@@ -623,7 +623,7 @@ implementations and real consumer requirements establish its contract.
 ### Interop and runtime boundary
 
 Do not relocate native DLL packaging into the archive layer. Reuse the existing
-`SevenZip.Interop` boundary. Keep generated ABI types internal to this assembly
+`SevenZipSharper.Interop` boundary. Keep generated ABI types internal to this assembly
 where the projection mechanism permits it, and never expose them in the public
 signatures.
 

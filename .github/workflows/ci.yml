@@ -13,16 +13,20 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+      - name: Generate 7-Zip WinMD
+        run: dotnet build interop/generation/SevenZip/SevenZip.proj --configuration Release
       - name: Restore
-        run: dotnet restore SevenZipSharp.slnx
+        run: dotnet restore SevenZipSharper.slnx
       - name: Build
-        run: dotnet build SevenZipSharp.slnx --configuration Release --no-restore
+        run: dotnet build SevenZipSharper.slnx --configuration Release --no-restore
       - name: Native integration tests
-        run: dotnet test tests/SevenZipSharp.Tests --configuration Release --no-build --no-restore
+        run: dotnet test tests/SevenZipSharper.Tests --configuration Release --no-build --no-restore
       - name: Publish NativeAOT smoke application
-        run: dotnet publish samples/SevenZipSharp.Sample --configuration Release --runtime win-x64 -p:PublishAot=true --self-contained --output artifacts/aot/win-x64
+        run: dotnet publish samples/SevenZipSharper.Sample --configuration Release --runtime win-x64 -p:PublishAot=true --self-contained --output artifacts/aot/win-x64
       - name: Run NativeAOT smoke checks
-        run: ./artifacts/aot/win-x64/SevenZipSharp.Sample.exe self-test
+        run: ./artifacts/aot/win-x64/SevenZipSharper.Sample.exe self-test
