@@ -1,0 +1,44 @@
+name: CD
+
+on:
+  workflow_dispatch:
+
+run-name: 'Publish SevenZipSharper.Interop to NuGet.org'
+
+env:
+  OUTPUT_DIR: '${{ github.workspace }}\artifacts\nupkg'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    environment: nuget.org
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository and pinned 7-Zip source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: NuGet login
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Pack
+        shell: pwsh
+        run: ./scripts/Build-SevenZipPackage.ps1
+      - name: Publish to NuGet.org
+        run: |
+          dotnet nuget push ${{ env.OUTPUT_DIR }}\*.nupkg --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push ${{ env.OUTPUT_DIR }}\*.snupkg --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}

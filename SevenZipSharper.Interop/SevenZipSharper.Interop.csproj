@@ -36,6 +36,12 @@
     <PackageProjectUrl>https://github.com/0x5bfa/SevenZipSharper</PackageProjectUrl>
     <RepositoryUrl>https://github.com/0x5bfa/SevenZipSharper.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <ContinuousIntegrationBuild Condition="'$(ContinuousIntegrationBuild)' == '' and '$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <DebugType>portable</DebugType>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageLicenseFile>LICENSES/PackageLicenses.txt</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
