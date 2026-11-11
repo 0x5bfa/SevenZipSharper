@@ -33,16 +33,16 @@ jobs:
             throw 'The latest 7-Zip release did not include a tag name.'
           }
 
-          git -C interop/external/7zip fetch --depth 1 origin "refs/tags/$tag:refs/tags/$tag"
+          git -C SevenZipSharper.Interop/external/7zip fetch --depth 1 origin "refs/tags/$tag:refs/tags/$tag"
           if ($LASTEXITCODE -ne 0) { throw "Could not fetch 7-Zip tag '$tag'." }
-          git -C interop/external/7zip checkout --detach "refs/tags/$tag"
+          git -C SevenZipSharper.Interop/external/7zip checkout --detach "refs/tags/$tag"
           if ($LASTEXITCODE -ne 0) { throw "Could not check out 7-Zip tag '$tag'." }
 
-          ./interop/scripts/Build-SevenZipPackage.ps1 -SevenZipTag $tag
+          ./scripts/Build-SevenZipPackage.ps1 -SevenZipTag $tag
           if ($LASTEXITCODE -ne 0) { throw 'SevenZipSharper.Interop package build failed.' }
 
-          git add interop/external/7zip
-          git add -f interop/metadata/SevenZip.winmd
+          git add SevenZipSharper.Interop/external/7zip
+          git add -f metadata/SevenZip.winmd
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Create or update pull request
@@ -56,13 +56,13 @@ jobs:
             Update the pinned 7-Zip source and regenerate the WinMD from its public interface headers.
 
             - Upstream release: `${{ steps.update.outputs.tag }}`
-            - Generated metadata: `interop/metadata/SevenZip.winmd`
+            - Generated metadata: `metadata/SevenZip.winmd`
             - Built package: `SevenZipSharper.Interop` with Windows x86, x64, and ARM64 native assets
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v4
         with:
           name: SevenZipSharper.Interop-${{ steps.update.outputs.tag }}
-          path: interop/artifacts/nupkg/*.nupkg
+          path: artifacts/nupkg/*.nupkg
           if-no-files-found: error
           retention-days: 30

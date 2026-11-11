@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/SevenZipSharper/SevenZipSharper.csproj" />
+    <ProjectReference Include="../SevenZipSharper/SevenZipSharper.csproj" />
     <None Update="TestData/**/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

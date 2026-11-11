@@ -48,7 +48,7 @@ archive instances. The code has no STA/message-pump or UI framework dependency.
   x64 native variant layout and union offset.
 - Independent inputs: BCL-created ZIP and TAR, plus existing 7z, RAR 4/5,
   multipart RAR, WIM, and ARJ fixtures. Fixture provenance is recorded under
-  `tests/SevenZipSharper.Tests/TestData/README.md`.
+  `../SevenZipSharper.Tests/TestData/README.md`.
 - ZIP output was also read through the BCL. All six write formats round-trip
   through the pinned native engine.
 - Solid selection tests count exactly one native extraction invocation.

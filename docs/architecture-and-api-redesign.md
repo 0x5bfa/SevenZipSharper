@@ -54,7 +54,7 @@ The project currently targets `net10.0`, declares `IsAotCompatible`, and referen
 `SevenZipSharper.Interop` 26.5.0. That package supplies Windows x86/x64/ARM64 native assets,
 WinMD, and a loader. Its installed README and XML documentation do not constitute
 a full managed archive API or callback projection. The local source in
-`../interop/src/SevenZipSharper.Interop/SevenZipLibrary.cs` confirms the loader's
+`../SevenZipSharper.Interop/SevenZipLibrary.cs` confirms the loader's
 process-wide default instance. An AOT compatibility property is not evidence of
 a successful NativeAOT publish or execution.
 

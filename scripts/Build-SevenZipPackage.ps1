@@ -8,10 +8,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$sevenZipRoot = Join-Path $repositoryRoot 'external\7zip'
+$sevenZipRoot = Join-Path $repositoryRoot 'SevenZipSharper.Interop\external\7zip'
 $sourceHistoryPath = Join-Path $sevenZipRoot 'DOC\src-history.txt'
-$metadataProjectPath = Join-Path $repositoryRoot 'generation\SevenZip\SevenZip.proj'
-$projectPath = Join-Path $repositoryRoot 'src\SevenZipSharper.Interop\SevenZipSharper.Interop.csproj'
+$projectPath = Join-Path $repositoryRoot 'SevenZipSharper.Interop\SevenZipSharper.Interop.csproj'
 $winmdPath = Join-Path $repositoryRoot 'metadata\SevenZip.winmd'
 $artifactRoot = Join-Path $repositoryRoot 'artifacts'
 $nativeBuildRoot = Join-Path $artifactRoot 'native-build'
@@ -47,7 +46,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sourceCommit)) {
 }
 
 Write-Host "Generating WinMD from 7-Zip $SevenZipTag ($sourceCommit)..."
-& dotnet build $metadataProjectPath --configuration Release
+& dotnet build $projectPath --configuration Release
 if ($LASTEXITCODE -ne 0) {
     throw 'WinMD generation failed.'
 }
@@ -141,7 +140,7 @@ foreach ($build in $builds) {
 }
 
 $licenseSources = @(
-    [pscustomobject]@{ Title = 'This repository (MIT License)'; Path = (Join-Path $repositoryRoot 'LICENSE') }
+    [pscustomobject]@{ Title = 'This repository (MIT License)'; Path = (Join-Path $repositoryRoot 'SevenZipSharper.Interop\LICENSE') }
     [pscustomobject]@{ Title = '7-Zip License Information'; Path = (Join-Path $sevenZipRoot 'DOC\License.txt') }
     [pscustomobject]@{ Title = 'GNU Lesser General Public License'; Path = (Join-Path $sevenZipRoot 'DOC\copying.txt') }
     [pscustomobject]@{ Title = 'unRAR License Restriction'; Path = (Join-Path $sevenZipRoot 'DOC\unRarLicense.txt') }

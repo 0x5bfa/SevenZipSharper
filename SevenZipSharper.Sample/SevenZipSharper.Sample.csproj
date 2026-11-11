@@ -6,6 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/SevenZipSharper/SevenZipSharper.csproj" />
+    <ProjectReference Include="../SevenZipSharper/SevenZipSharper.csproj" />
   </ItemGroup>
 </Project>

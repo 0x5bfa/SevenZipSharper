@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <UsingMicrosoftNoTargetsSdk>true</UsingMicrosoftNoTargetsSdk>
+  </PropertyGroup>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.Windows.WinmdGenerator" />
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>SevenZipSharper.Interop</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
+    <OutputWinmd Condition="'$(OutputWinmd)' == ''">$(MSBuildProjectDirectory)\..\metadata\SevenZip.winmd</OutputWinmd>
+    <SevenZipWinmdPath Condition="'$(SevenZipWinmdPath)' == ''">$(OutputWinmd)</SevenZipWinmdPath>
+    <ObjDir>$(MSBuildProjectDirectory)\obj\winmd</ObjDir>
+    <CompiledHeadersDir>$(ObjDir)\CompiledHeaders</CompiledHeadersDir>
+    <WinmdVersion>1.0.0.0</WinmdVersion>
+    <GenerateAssemblyVersionInfo>false</GenerateAssemblyVersionInfo>
+    <SdkIncRoot>$(MSBuildProjectDirectory)\external\7zip\CPP</SdkIncRoot>
+    <AdditionalIncludes>$(SdkIncRoot);$(SdkIncRoot)\7zip</AdditionalIncludes>
+    <ScraperHeader>$(ObjDir)\scraper.header.txt</ScraperHeader>
+    <ConstantsScraperHeader Condition="!Exists('$(ConstantsScraperHeader)')" />
+    <UseWinSDKAssets>true</UseWinSDKAssets>
+    <ShowEmitWinmdOutputDetails>true</ShowEmitWinmdOutputDetails>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>SevenZipSharper.Interop</PackageId>
+    <PackageVersion>0.1.0</PackageVersion>
+    <Authors>0x5bfa</Authors>
+    <Description>7-Zip WinMD metadata, native runtime assets, and a CreateObject loader for SevenZipSharper.</Description>
+    <PackageTags>7zip;7z;winmd;interop</PackageTags>
+    <PackageProjectUrl>https://github.com/0x5bfa/SevenZipSharper</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/0x5bfa/SevenZipSharper.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSES/PackageLicenses.txt</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ResponseFile Remove="*.rsp" />
+    <ManualCs Remove="@(ManualCs)" />
+    <AutoType Remove="$(MSBuildThisFileDirectory)autoTypes.json" Condition="!Exists('$(MSBuildThisFileDirectory)autoTypes.json')" />
+    <FunctionPointerFixup Remove="$(MSBuildThisFileDirectory)functionPointerFixups.json" Condition="!Exists('$(MSBuildThisFileDirectory)functionPointerFixups.json')" />
+    <Compile Remove="build\GenerateSevenZipInputs.cs" />
+
+    <ScraperRsp Include="scraper.settings.rsp" />
+    <ScraperRsp Include="$(ObjDir)\interface-guids.generated.rsp" />
+    <ConstantsScraperRsp Include="ConstantsScraper.settings.rsp" />
+    <EmitterRsp Include="emitter.settings.rsp" />
+    <EmitterRsp Include="$(ObjDir)\namespace-map.rsp" />
+
+    <None Include="$(SevenZipWinmdPath)" Pack="true" PackagePath="metadata/SevenZip.winmd" Visible="false" />
+    <None Include="$(SevenZipNativeAssetRoot)\win-x86\7z.dll" Pack="true" PackagePath="runtimes/win-x86/native/7z.dll" Visible="false" />
+    <None Include="$(SevenZipNativeAssetRoot)\win-x64\7z.dll" Pack="true" PackagePath="runtimes/win-x64/native/7z.dll" Visible="false" />
+    <None Include="$(SevenZipNativeAssetRoot)\win-arm64\7z.dll" Pack="true" PackagePath="runtimes/win-arm64/native/7z.dll" Visible="false" />
+    <None Include="$(SevenZipPackageLicensePath)" Pack="true" PackagePath="LICENSES/PackageLicenses.txt" Visible="false" Condition="'$(SevenZipPackageLicensePath)' != ''" />
+    <None Include="..\packaging\README.md" Pack="true" PackagePath="README.md" Visible="false" />
+    <None Include="..\packaging\buildTransitive\SevenZipSharper.Interop.props" Pack="true" PackagePath="buildTransitive/SevenZipSharper.Interop.props" Visible="false" />
+  </ItemGroup>
+
+  <UsingTask TaskName="GenerateSevenZipInputs" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <Task>
+      <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)build\GenerateSevenZipInputs.cs" />
+    </Task>
+  </UsingTask>
+
+  <Target Name="PrepareSevenZipInputs" BeforeTargets="PrepScraperHeader">
+    <GenerateSevenZipInputs CppRoot="$(SdkIncRoot)" NamespaceMapPath="$(MSBuildThisFileDirectory)namespace-map.json" PartitionsRoot="$(ObjDir)\generated-partitions" ScraperHeaderPath="$(ScraperHeader)" NamespaceResponsePath="$(ObjDir)\namespace-map.rsp" InterfaceGuidsResponsePath="$(ObjDir)\interface-guids.generated.rsp">
+      <Output TaskParameter="Partitions" ItemName="Partition" />
+    </GenerateSevenZipInputs>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(OutputWinmd)'))" />
+  </Target>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.Windows.WinmdGenerator" />
+
+  <ItemGroup>
+    <Clean Remove="obj\**" />
+  </ItemGroup>
+
+  <Target Name="BeforeClean">
+    <RemoveDir Directories="$(GeneratedDir);$(ScratchOutputDir);$(CompiledHeadersDir);$(ObjDir)\generated-partitions" />
+    <Delete Files="$(ScraperHeader);$(ObjDir)\namespace-map.rsp;$(OutputWinmd)" />
+  </Target>
+
+</Project>

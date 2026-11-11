@@ -87,6 +87,7 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 .artifacts/
+/metadata/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -112,6 +113,7 @@ StyleCopReport.xml
 *.rsp
 # but not Directory.Build.rsp, as it configures directory-level build defaults
 !Directory.Build.rsp
+!SevenZipSharper.Interop/*.rsp
 *.sbr
 *.tlb
 *.tli

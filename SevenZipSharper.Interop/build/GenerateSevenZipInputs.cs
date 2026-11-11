@@ -10,7 +10,7 @@ using Microsoft.Build.Utilities;
 
 public sealed class GenerateSevenZipInputs : Task
 {
-    private const string GeneratedComment = "// Generated from external/7zip/CPP/7zip/Guid.txt. Do not edit by hand.";
+    private const string GeneratedComment = "// Generated from SevenZipSharper.Interop/external/7zip/CPP/7zip/Guid.txt. Do not edit by hand.";
     private static readonly Encoding Utf8 = new UTF8Encoding(false);
 
     [Required] public string CppRoot { get; set; }
