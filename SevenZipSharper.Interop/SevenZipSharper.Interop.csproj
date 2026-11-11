@@ -54,10 +54,10 @@
     <FunctionPointerFixup Remove="$(MSBuildThisFileDirectory)functionPointerFixups.json" Condition="!Exists('$(MSBuildThisFileDirectory)functionPointerFixups.json')" />
     <Compile Remove="build\GenerateSevenZipInputs.cs" />
 
-    <ScraperRsp Include="scraper.settings.rsp" />
+    <ScraperRsp Include="remap-enums.rsp" />
     <ScraperRsp Include="$(ObjDir)\interface-guids.generated.rsp" />
-    <ConstantsScraperRsp Include="ConstantsScraper.settings.rsp" />
-    <EmitterRsp Include="emitter.settings.rsp" />
+    <ConstantsScraperRsp Include="remap-constants.rsp" />
+    <EmitterRsp Include="settings.rsp" />
     <EmitterRsp Include="$(ObjDir)\namespace-map.rsp" />
 
     <None Include="$(SevenZipWinmdPath)" Pack="true" PackagePath="metadata/SevenZip.winmd" Visible="false" />
